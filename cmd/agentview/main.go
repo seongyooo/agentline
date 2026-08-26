@@ -72,15 +72,27 @@ func run() error {
 		tree:     st.Project.Tree,
 		interval: *interval,
 	})
+	hint := sourceHint(*sourceName, *addr)
 	if err != nil {
-		// A UI with no source still shows the project; say why it is idle
-		// rather than looking broken.
+		// A UI with no source still shows the project. Say why it is idle
+		// rather than leaving it looking broken.
 		log.Printf("no event source: %v", err)
+		hint = fmt.Sprintf("Event source unavailable: %v", err)
 	}
 
 	log.Printf("starting agentview in %s", root)
-	_, err = tea.NewProgram(tui.New(st, scanner, stream), tea.WithAltScreen()).Run()
+	model := tui.New(st, scanner, stream).WithHint(hint)
+	_, err = tea.NewProgram(model, tea.WithAltScreen()).Run()
 	return err
+}
+
+// sourceHint tells the user where activity is expected from, so a setup that
+// is not wired up can be told apart from an agent that is simply idle.
+func sourceHint(name, addr string) string {
+	if name == "claude" {
+		return fmt.Sprintf("Waiting for Claude Code hooks on %s", addr)
+	}
+	return fmt.Sprintf("Waiting for the %s source", name)
 }
 
 // sourceConfig carries what the event sources need to start.
