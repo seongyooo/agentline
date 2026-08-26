@@ -131,8 +131,28 @@ func TestSourceClosedKeepsLastState(t *testing.T) {
 	}
 }
 
-func TestNilStreamProducesNoCommand(t *testing.T) {
-	if cmd := New(state.New("/proj"), nil, nil).Init(); cmd != nil {
+func TestNilStreamProducesNoWait(t *testing.T) {
+	if cmd := waitForEvent(nil); cmd != nil {
 		t.Error("a model with no event source should not wait for events")
+	}
+}
+
+// The idle redraw must keep rescheduling itself, or activity markers would
+// freeze at whatever age they had when the agent went quiet.
+func TestDecayTickReschedulesItself(t *testing.T) {
+	m := sized(t, 100, 30)
+
+	next, cmd := m.Update(decayMsg(time.Now()))
+	if cmd == nil {
+		t.Fatal("decay tick did not reschedule")
+	}
+	if next.(Model).View() != m.View() {
+		t.Error("a decay tick changed the state; it should only redraw")
+	}
+}
+
+func TestInitStartsBothTheStreamAndTheDecayTick(t *testing.T) {
+	if cmd := New(state.New("/proj"), nil, nil).Init(); cmd == nil {
+		t.Error("Init returned nothing; the decay tick must run even with no source")
 	}
 }

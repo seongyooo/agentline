@@ -4,6 +4,8 @@
 package tui
 
 import (
+	"time"
+
 	tea "github.com/charmbracelet/bubbletea"
 
 	"github.com/seonl/agentview/internal/events"
@@ -18,12 +20,20 @@ const (
 	minHeight = 12
 )
 
+// decayInterval is how often the UI redraws with no new events, so activity
+// markers age out of CURRENT and RECENT on their own. Without it a file edited
+// hours ago would still look active while the agent sat idle.
+const decayInterval = 2 * time.Second
+
 // eventMsg carries one normalized agent event into the message loop.
 type eventMsg events.Event
 
 // sourceClosedMsg reports that the event stream ended. The UI keeps showing
 // the last observed state rather than blanking or inventing a new one.
 type sourceClosedMsg struct{}
+
+// decayMsg is the periodic redraw that lets activity age.
+type decayMsg time.Time
 
 // Model is the Bubble Tea model. It renders a *state.State it mutates only
 // through the reducer, plus the tree's expand/collapse flags.
@@ -32,9 +42,21 @@ type Model struct {
 	scanner *project.Scanner
 	stream  <-chan events.Event
 
+	// hint explains where events are expected from. It is shown only until
+	// the first one arrives, so an unwired setup is diagnosable instead of
+	// looking like an idle agent.
+	hint string
+
 	tree   treeView
 	width  int
 	height int
+}
+
+// observedActivity reports whether anything has been seen from an agent. It is
+// derived from the state rather than tracked separately, so a Model handed
+// state that already has activity reports it honestly.
+func (m Model) observedActivity() bool {
+	return len(m.st.Agent.Activity) > 0
 }
 
 // New returns a Model rendering the given state.
@@ -45,8 +67,14 @@ func New(st *state.State, scanner *project.Scanner, stream <-chan events.Event) 
 	return Model{st: st, scanner: scanner, stream: stream}
 }
 
+// WithHint sets the message shown until the first event arrives.
+func (m Model) WithHint(hint string) Model {
+	m.hint = hint
+	return m
+}
+
 func (m Model) Init() tea.Cmd {
-	return waitForEvent(m.stream)
+	return tea.Batch(waitForEvent(m.stream), decayTick())
 }
 
 func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
@@ -61,6 +89,10 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case sourceClosedMsg:
 		m.stream = nil
 		return m, nil
+
+	case decayMsg:
+		// Nothing to change: returning re-renders, which is the point.
+		return m, decayTick()
 
 	case tea.KeyMsg:
 		switch msg.String() {
@@ -91,12 +123,41 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 // every state change; the tree is opened so the touched file is visible,
 // which is the whole point of the project panel.
 func (m *Model) applyEvent(e events.Event) {
+	if !e.Valid() {
+		return // ignore malformed input without disturbing the selection
+	}
 	m.st.Apply(e)
 
 	if e.Path != "" && m.scanner != nil {
-		m.scanner.Reveal(m.st.Project.Tree, e.Path)
+		// Revealing inserts rows above the selection, so the cursor has to
+		// follow the node the user chose rather than the index it sat at.
+		m.keepingSelection(func() {
+			m.scanner.Reveal(m.st.Project.Tree, e.Path)
+		})
 	}
 	m.syncScroll()
+}
+
+// keepingSelection runs a change that may insert or remove tree rows, then
+// restores the cursor to whatever node was selected before.
+func (m *Model) keepingSelection(change func()) {
+	selected := m.selected()
+	change()
+
+	if selected == nil {
+		return
+	}
+	for i, row := range m.rows() {
+		if row.Node == selected {
+			m.tree.cursor = i
+			return
+		}
+	}
+}
+
+// decayTick schedules the next idle redraw.
+func decayTick() tea.Cmd {
+	return tea.Tick(decayInterval, func(t time.Time) tea.Msg { return decayMsg(t) })
 }
 
 // waitForEvent blocks on the next event from the source. Bubble Tea runs it

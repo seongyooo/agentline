@@ -35,9 +35,9 @@ func TestPipelineEndToEnd(t *testing.T) {
 
 	// Pump the loop exactly as Bubble Tea does: run the command, feed its
 	// message back, repeat until the source closes.
-	cmd := m.Init()
+	cmd := waitForEvent(stream)
 	if cmd == nil {
-		t.Fatal("Init did not start waiting for events")
+		t.Fatal("no command to wait on the event stream")
 	}
 
 	var seen int
@@ -82,7 +82,7 @@ func TestPipelineSurvivesSourceThatCannotStart(t *testing.T) {
 	model, _ := New(st, nil, stream).Update(tea.WindowSizeMsg{Width: 100, Height: 30})
 	m := model.(Model)
 
-	if cmd := m.Init(); cmd != nil {
+	if cmd := waitForEvent(stream); cmd != nil {
 		t.Error("model waited on a source that never started")
 	}
 	if out := m.View(); !strings.Contains(out, "AGENTVIEW") {
