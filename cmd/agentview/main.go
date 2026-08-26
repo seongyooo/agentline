@@ -13,6 +13,7 @@ import (
 	tea "github.com/charmbracelet/bubbletea"
 
 	"github.com/seonl/agentview/internal/agent"
+	"github.com/seonl/agentview/internal/agent/claude"
 	"github.com/seonl/agentview/internal/events"
 	"github.com/seonl/agentview/internal/project"
 	"github.com/seonl/agentview/internal/tui"
@@ -30,8 +31,20 @@ func main() {
 func run() error {
 	rootFlag := flag.String("root", "", "project root (default: detected from the working directory)")
 	mission := flag.String("mission", "", "the high-level goal shown in the MISSION panel")
+	sourceName := flag.String("source", "claude", `event source: "claude" or "mock"`)
+	addr := flag.String("addr", claude.DefaultAddr, "address to receive Claude Code hooks on")
 	interval := flag.Duration("mock-interval", 2*time.Second, "delay between mock events")
+	printHooks := flag.Bool("print-hooks", false, "print the hook settings to install in the observed project, then exit")
 	flag.Parse()
+
+	if *printHooks {
+		settings, err := claude.HookSettings(*addr)
+		if err != nil {
+			return fmt.Errorf("render hook settings: %w", err)
+		}
+		fmt.Println(string(settings))
+		return nil
+	}
 
 	root, err := resolveRoot(*rootFlag)
 	if err != nil {
@@ -49,13 +62,19 @@ func run() error {
 	st.Agent.Mission = *mission
 	st.Project.Tree = scanner.NewTree()
 
-	// Until a Claude Code adapter exists, the UI is driven by a mock source
-	// replaying activity over files that actually exist in this project.
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 
-	stream, err := startMockSource(ctx, scanner, st.Project.Tree, *interval)
+	stream, err := startSource(ctx, *sourceName, sourceConfig{
+		root:     root,
+		addr:     *addr,
+		scanner:  scanner,
+		tree:     st.Project.Tree,
+		interval: *interval,
+	})
 	if err != nil {
+		// A UI with no source still shows the project; say why it is idle
+		// rather than looking broken.
 		log.Printf("no event source: %v", err)
 	}
 
@@ -64,16 +83,32 @@ func run() error {
 	return err
 }
 
-// startMockSource replays sample activity over real project files. It returns
-// a nil stream when the project has no files to act on, leaving a static UI
-// rather than inventing paths that do not exist.
-func startMockSource(ctx context.Context, scanner *project.Scanner, tree *project.Node, interval time.Duration) (<-chan events.Event, error) {
-	src := &agent.Mock{
-		Paths:    sampleFiles(scanner, tree, 3),
-		Interval: interval,
-		Loop:     true,
+// sourceConfig carries what the event sources need to start.
+type sourceConfig struct {
+	root     string
+	addr     string
+	scanner  *project.Scanner
+	tree     *project.Node
+	interval time.Duration
+}
+
+// startSource opens the requested event source.
+func startSource(ctx context.Context, name string, cfg sourceConfig) (<-chan events.Event, error) {
+	switch name {
+	case "claude":
+		return claude.New(cfg.root, cfg.addr).Events(ctx)
+
+	case "mock":
+		// Replays sample activity over files that actually exist, so nothing
+		// on screen refers to a path this project does not have.
+		src := &agent.Mock{
+			Paths:    sampleFiles(cfg.scanner, cfg.tree, 3),
+			Interval: cfg.interval,
+			Loop:     true,
+		}
+		return src.Events(ctx)
 	}
-	return src.Events(ctx)
+	return nil, fmt.Errorf("unknown source %q", name)
 }
 
 // resolveRoot honors an explicit --root, otherwise detects the project root
