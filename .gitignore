@@ -1,0 +1,8 @@
+# Compiled binaries
+/agentview
+/agentview.exe
+
+# Test and profiling output
+*.test
+*.out
+coverage.*
