@@ -136,6 +136,52 @@ func TestSelectionSurvivesTreeReveal(t *testing.T) {
 	}
 }
 
+// A prompt observed from the agent must fill MISSION without the user having
+// to supply it.
+func TestMissionAppearsFromAnObservedPrompt(t *testing.T) {
+	st := state.New("/proj")
+	st.Project.Tree = project.MockTree()
+	model, _ := New(st, nil, nil).Update(tea.WindowSizeMsg{Width: 100, Height: 30})
+
+	const goal = "Connect the drainage system to the valve"
+	m, _ := send(model.(Model), events.Event{
+		Type:      events.UserPrompt,
+		Message:   goal,
+		Timestamp: time.Now(),
+		Source:    "claude-code",
+	})
+
+	out := ansi.Strip(m.View())
+	if !strings.Contains(out, goal) {
+		t.Errorf("MISSION was not filled from the prompt:\n%s", out)
+	}
+	// A prompt logs no action, but it is still something observed: the UI
+	// must not claim otherwise while showing a mission derived from it.
+	if strings.Contains(out, "No agent activity yet") {
+		t.Errorf("UI claims it has seen nothing while showing a derived mission:\n%s", out)
+	}
+}
+
+// A mission too long for the panel is cut with an ellipsis rather than
+// wrapping into the layout budget.
+func TestOverlongMissionIsTruncatedNotWrapped(t *testing.T) {
+	st := state.New("/proj")
+	st.Project.Tree = project.MockTree()
+	st.PinMission(strings.Repeat("make the thing better ", 20))
+
+	model, _ := New(st, nil, nil).Update(tea.WindowSizeMsg{Width: 100, Height: 30})
+	out := model.(Model).View()
+
+	for i, line := range strings.Split(out, "\n") {
+		if got := ansi.StringWidth(line); got != 100 {
+			t.Fatalf("line %d is %d wide; a long mission broke the layout", i, got)
+		}
+	}
+	if !strings.Contains(ansi.Strip(out), "…") {
+		t.Error("a truncated mission should show it was cut")
+	}
+}
+
 // writeTree creates the given slash-separated files under root.
 func writeTree(t *testing.T, root string, paths ...string) {
 	t.Helper()

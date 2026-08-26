@@ -52,11 +52,14 @@ type Model struct {
 	height int
 }
 
-// observedActivity reports whether anything has been seen from an agent. It is
-// derived from the state rather than tracked separately, so a Model handed
-// state that already has activity reports it honestly.
+// observedActivity reports whether anything has been heard from an agent.
+//
+// It asks the state, not the activity log: a prompt sets the mission and the
+// status without logging an action, and counting log entries made the UI
+// contradict itself — header WORKING and a filled MISSION above a NOW panel
+// still claiming it had seen nothing.
 func (m Model) observedActivity() bool {
-	return len(m.st.Agent.Activity) > 0
+	return m.st.Observed()
 }
 
 // New returns a Model rendering the given state.

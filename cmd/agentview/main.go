@@ -30,7 +30,7 @@ func main() {
 
 func run() error {
 	rootFlag := flag.String("root", "", "project root (default: detected from the working directory)")
-	mission := flag.String("mission", "", "the high-level goal shown in the MISSION panel")
+	mission := flag.String("mission", "", "pin the MISSION panel to this goal instead of deriving it from the agent's prompts")
 	sourceName := flag.String("source", "claude", `event source: "claude" or "mock"`)
 	addr := flag.String("addr", claude.DefaultAddr, "address to receive Claude Code hooks on")
 	interval := flag.Duration("mock-interval", 2*time.Second, "delay between mock events")
@@ -59,7 +59,7 @@ func run() error {
 
 	scanner := project.NewScanner(root)
 	st := state.New(root)
-	st.Agent.Mission = *mission
+	st.PinMission(*mission)
 	st.Project.Tree = scanner.NewTree()
 
 	ctx, cancel := context.WithCancel(context.Background())
