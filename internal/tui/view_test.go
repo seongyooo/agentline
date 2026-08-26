@@ -35,7 +35,7 @@ func render(t *testing.T, w, h int) string {
 // sized returns a model that has been told its terminal size.
 func sized(t *testing.T, w, h int) Model {
 	t.Helper()
-	m, _ := New(seeded(), nil).Update(tea.WindowSizeMsg{Width: w, Height: h})
+	m, _ := New(seeded(), nil, nil).Update(tea.WindowSizeMsg{Width: w, Height: h})
 	return m.(Model)
 }
 
@@ -100,7 +100,7 @@ func TestUnknownNextRendersDash(t *testing.T) {
 // The edited file and every ancestor directory must carry a marker, so the
 // tree answers "where is the agent working" at a glance.
 func TestTreeMarksActivePathAndAncestors(t *testing.T) {
-	m, _ := New(seeded(), nil).Update(tea.WindowSizeMsg{Width: 100, Height: 40})
+	m, _ := New(seeded(), nil, nil).Update(tea.WindowSizeMsg{Width: 100, Height: 40})
 	tree := strings.Join(m.(Model).treePanel(computeLayout(100, 40), time.Now()), "\n")
 
 	for _, want := range []string{"Puzzle/", "DrainSystem.cs", "Scripts/", "Assets/"} {
@@ -263,7 +263,7 @@ func TestQuitKeys(t *testing.T) {
 	}
 	for name, msg := range quit {
 		t.Run(name, func(t *testing.T) {
-			if _, cmd := New(seeded(), nil).Update(msg); cmd == nil {
+			if _, cmd := New(seeded(), nil, nil).Update(msg); cmd == nil {
 				t.Errorf("key %q did not produce a quit command", name)
 			}
 		})
@@ -272,7 +272,7 @@ func TestQuitKeys(t *testing.T) {
 
 // Esc is reserved for cancel/close (§22) and must not exit the application.
 func TestEscDoesNotQuit(t *testing.T) {
-	if _, cmd := New(seeded(), nil).Update(tea.KeyMsg{Type: tea.KeyEsc}); cmd != nil {
+	if _, cmd := New(seeded(), nil, nil).Update(tea.KeyMsg{Type: tea.KeyEsc}); cmd != nil {
 		t.Error("Esc produced a command; it should be inert for now")
 	}
 }

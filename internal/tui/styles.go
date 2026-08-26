@@ -56,6 +56,8 @@ func activityMarker(l state.ActivityLevel) (string, lipgloss.Style) {
 // actionVerb is the human-readable verb for an action kind.
 func actionVerb(k state.ActionKind) string {
 	switch k {
+	case state.ActionWorking:
+		return "Working"
 	case state.ActionReading:
 		return "Reading"
 	case state.ActionEditing:
