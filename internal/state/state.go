@@ -3,6 +3,7 @@
 package state
 
 import (
+	"strings"
 	"time"
 
 	"github.com/seonl/agentview/internal/events"
@@ -63,6 +64,10 @@ type AgentState struct {
 	Mission  string
 	Next     string
 	Activity []Action
+
+	// missionPinned marks a mission the user set explicitly, which observed
+	// prompts must not overwrite.
+	missionPinned bool
 }
 
 // ProjectState is where the agent is working.
@@ -76,7 +81,16 @@ type ProjectState struct {
 type State struct {
 	Agent   AgentState
 	Project ProjectState
+
+	// observed records whether anything has ever been heard from an agent.
+	// It is not the same as having activity to show: a prompt sets the
+	// mission and the status without logging an action.
+	observed bool
 }
+
+// Observed reports whether any agent event has been applied. The UI uses it to
+// tell "nothing is wired up" apart from "the agent has nothing to report".
+func (s *State) Observed() bool { return s.observed }
 
 // New returns an empty state rooted at the given directory.
 func New(root string) *State {
@@ -92,6 +106,7 @@ func (s *State) Apply(e events.Event) {
 	if !e.Valid() {
 		return
 	}
+	s.observed = true
 	s.Agent.Agent = e.Source
 
 	switch e.Type {
@@ -125,17 +140,62 @@ func (s *State) Apply(e events.Event) {
 		case events.StatusDone:
 			s.setNow(Action{Kind: ActionDone, At: e.Timestamp})
 		case events.StatusWorking:
-			// Only a summary: a specific action already on screen is more
-			// informative and must not be overwritten by it.
-			if s.Agent.Now.Kind == ActionIdle {
-				s.setNow(Action{Kind: ActionWorking, At: e.Timestamp})
-			}
+			s.markWorking(e.Timestamp)
 		}
 
 	case events.AgentError:
 		s.Agent.Status = events.StatusError
 		s.setNow(Action{Kind: ActionFailed, Target: e.Message, At: e.Timestamp})
+
+	case events.UserPrompt:
+		s.setMission(e.Message)
+		s.markWorking(e.Timestamp)
 	}
+}
+
+// markWorking records that the agent is busy.
+//
+// Every path that learns the agent is working goes through here, so NOW can
+// never contradict the header: reporting WORKING above an Idle NOW is exactly
+// the inconsistency this prevents. A specific action already on screen is more
+// informative than the summary and is left alone.
+func (s *State) markWorking(at time.Time) {
+	s.Agent.Status = events.StatusWorking
+	if s.Agent.Now.Kind == ActionIdle {
+		s.setNow(Action{Kind: ActionWorking, At: at})
+	}
+}
+
+// PinMission sets a mission the user supplied. Observed prompts will not
+// overwrite it: an explicit instruction outranks anything derived.
+func (s *State) PinMission(mission string) {
+	s.Agent.Mission = mission
+	s.Agent.missionPinned = mission != ""
+}
+
+// setMission derives the mission from a user prompt.
+//
+// The prompt is the user's own statement of intent, so this is a summary of
+// something observed, not an inference about it — no model is consulted. The
+// most recent prompt wins, because an older instruction the user has since
+// moved on from would describe work that is no longer happening.
+func (s *State) setMission(prompt string) {
+	if s.Agent.missionPinned {
+		return
+	}
+	if mission := headline(prompt); mission != "" {
+		s.Agent.Mission = mission
+	}
+}
+
+// headline reduces a prompt to its first line with whitespace collapsed. It
+// only trims; it never rewrites the user's words.
+func headline(prompt string) string {
+	line := prompt
+	if i := strings.IndexAny(line, "\r\n"); i >= 0 {
+		line = line[:i]
+	}
+	return strings.Join(strings.Fields(line), " ")
 }
 
 func (s *State) recordFile(kind ActionKind, e events.Event) {

@@ -18,6 +18,10 @@ const (
 	CommandEnd   Type = "command_end"
 	AgentStatus  Type = "agent_status"
 	AgentError   Type = "agent_error"
+
+	// UserPrompt is the instruction the user gave the agent. It carries the
+	// prompt text in Message and is what MISSION is derived from.
+	UserPrompt Type = "user_prompt"
 )
 
 // Status is the agent's observable lifecycle state.
@@ -41,6 +45,9 @@ type Event struct {
 	Path    string `json:"path,omitempty"`
 	Command string `json:"command,omitempty"`
 	Status  Status `json:"status,omitempty"`
+
+	// Message is free text whose meaning depends on Type: the failure
+	// description for an error, the instruction for a UserPrompt.
 	Message string `json:"message,omitempty"`
 
 	// Failed marks a command that did not succeed. It is separate from
@@ -72,6 +79,8 @@ func (e Event) Valid() bool {
 		return false
 	case AgentError:
 		return true
+	case UserPrompt:
+		return e.Message != ""
 	}
 	return false
 }
