@@ -4,11 +4,13 @@
 package tui
 
 import (
+	"context"
 	"time"
 
 	tea "github.com/charmbracelet/bubbletea"
 
 	"github.com/seonl/agentview/internal/events"
+	"github.com/seonl/agentview/internal/git"
 	"github.com/seonl/agentview/internal/project"
 	"github.com/seonl/agentview/internal/state"
 )
@@ -25,6 +27,14 @@ const (
 // hours ago would still look active while the agent sat idle.
 const decayInterval = 2 * time.Second
 
+// Git refresh pacing. The working tree changes far more slowly than the agent
+// acts, and reading it costs a subprocess, so it is polled gently and bounded
+// so a slow or wedged repository cannot pile up work.
+const (
+	gitInterval = 5 * time.Second
+	gitTimeout  = 3 * time.Second
+)
+
 // eventMsg carries one normalized agent event into the message loop.
 type eventMsg events.Event
 
@@ -34,6 +44,9 @@ type sourceClosedMsg struct{}
 
 // decayMsg is the periodic redraw that lets activity age.
 type decayMsg time.Time
+
+// gitMsg carries a repository snapshot read off the UI goroutine.
+type gitMsg git.Status
 
 // Model is the Bubble Tea model. It renders a *state.State it mutates only
 // through the reducer, plus the tree's expand/collapse flags.
@@ -77,7 +90,7 @@ func (m Model) WithHint(hint string) Model {
 }
 
 func (m Model) Init() tea.Cmd {
-	return tea.Batch(waitForEvent(m.stream), decayTick())
+	return tea.Batch(waitForEvent(m.stream), decayTick(), readGit(m.st.Project.Root))
 }
 
 func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
@@ -96,6 +109,12 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case decayMsg:
 		// Nothing to change: returning re-renders, which is the point.
 		return m, decayTick()
+
+	case gitMsg:
+		m.st.Project.Git = git.Status(msg)
+		// Scheduled only once a read has landed, so a slow repository delays
+		// the next look instead of stacking up overlapping subprocesses.
+		return m, gitTick(m.st.Project.Root)
 
 	case tea.KeyMsg:
 		switch msg.String() {
@@ -161,6 +180,27 @@ func (m *Model) keepingSelection(change func()) {
 // decayTick schedules the next idle redraw.
 func decayTick() tea.Cmd {
 	return tea.Tick(decayInterval, func(t time.Time) tea.Msg { return decayMsg(t) })
+}
+
+// gitTick schedules the next repository read.
+func gitTick(root string) tea.Cmd {
+	return tea.Tick(gitInterval, func(time.Time) tea.Msg {
+		return readGit(root)()
+	})
+}
+
+// readGit reads the repository off the UI goroutine, bounded by a timeout so a
+// wedged git cannot hold the interface. A directory that is not a repository
+// yields the zero Status, which renders as no Git information at all.
+func readGit(root string) tea.Cmd {
+	if root == "" {
+		return nil
+	}
+	return func() tea.Msg {
+		ctx, cancel := context.WithTimeout(context.Background(), gitTimeout)
+		defer cancel()
+		return gitMsg(git.Load(ctx, root))
+	}
 }
 
 // waitForEvent blocks on the next event from the source. Bubble Tea runs it

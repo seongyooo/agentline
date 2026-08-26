@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"github.com/seonl/agentview/internal/events"
+	"github.com/seonl/agentview/internal/git"
 	"github.com/seonl/agentview/internal/project"
 )
 
@@ -75,6 +76,10 @@ type ProjectState struct {
 	Root           string
 	Tree           *project.Node
 	ActivityByPath map[string]time.Time
+
+	// Git is the last repository snapshot. Its zero value means there is no
+	// repository, or none has been read yet.
+	Git git.Status
 }
 
 // State is the single source of truth handed to the renderer.

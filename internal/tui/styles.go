@@ -4,6 +4,7 @@ import (
 	"github.com/charmbracelet/lipgloss"
 
 	"github.com/seonl/agentview/internal/events"
+	"github.com/seonl/agentview/internal/git"
 	"github.com/seonl/agentview/internal/state"
 )
 
@@ -49,6 +50,17 @@ func activityMarker(l state.ActivityLevel) (string, lipgloss.Style) {
 		return "◐", styleWorking
 	case state.Modified:
 		return "·", styleDim
+	}
+	return "", styleDim
+}
+
+// gitMarker maps a file's Git status to a symbol.
+func gitMarker(s git.FileStatus) (string, lipgloss.Style) {
+	switch s {
+	case git.Modified:
+		return "M", styleWarn
+	case git.Untracked:
+		return "+", styleDim
 	}
 	return "", styleDim
 }

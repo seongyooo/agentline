@@ -6,6 +6,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/charmbracelet/lipgloss"
 	"github.com/charmbracelet/x/ansi"
 
 	"github.com/seonl/agentview/internal/project"
@@ -144,7 +145,7 @@ func (m Model) treeRow(row project.Row, width int, now time.Time, selected bool)
 		label += " (unreadable)"
 	}
 
-	marker, markerStyle := activityMarker(m.st.NodeLevel(row.Node, now))
+	marker, markerStyle := m.rowMarker(row.Node, now)
 
 	// The selected row is drawn in reverse video across the full column, so
 	// it reads as selected without relying on color.
@@ -164,6 +165,23 @@ func (m Model) treeRow(row project.Row, width int, now time.Time, selected bool)
 	default:
 		return fitLine(label, width-2) + " " + markerStyle.Render(marker)
 	}
+}
+
+// rowMarker picks the single symbol shown at the right of a tree row.
+//
+// Agent activity outranks Git status, and shares one gutter with it rather
+// than adding a second column. A file the agent just touched is almost
+// certainly modified too, so showing both would spend width on a symbol that
+// says nothing new — and what the agent is doing right now is the more
+// urgent fact. Git fills the gutter only once activity has decayed away.
+func (m Model) rowMarker(n *project.Node, now time.Time) (string, lipgloss.Style) {
+	if marker, style := activityMarker(m.st.NodeLevel(n, now)); marker != "" {
+		return marker, style
+	}
+	if n.Dir {
+		return "", styleDim // directories are not tracked by Git
+	}
+	return gitMarker(m.st.Project.Git.Of(n.Path))
 }
 
 // activityPanel renders the recent activity log, oldest first.
@@ -217,13 +235,36 @@ func displayTarget(a state.Action) string {
 // shown dimmed so it does not read as an active input.
 func (m Model) inputBar(width int) string {
 	prompt := styleDim.Render("> Ask Claude Code...")
+
 	hint := styleDim.Render("q quit")
+	if branch := m.branchLabel(); branch != "" {
+		hint = styleDim.Render(branch+"   ") + hint
+	}
 
 	gap := width - ansi.StringWidth(prompt) - ansi.StringWidth(hint)
 	if gap < 1 {
 		return fitLine(prompt, width)
 	}
 	return prompt + strings.Repeat(" ", gap) + hint
+}
+
+// branchLabel names the current branch, marked with an asterisk when the
+// working tree has changes. It is context for the rest of the screen, not a
+// Git panel: no counts, no ahead/behind, nothing to act on.
+func (m Model) branchLabel() string {
+	status := m.st.Project.Git
+
+	branch := status.Branch
+	if status.Detached {
+		branch = "detached"
+	}
+	if branch == "" {
+		return ""
+	}
+	if status.Dirty() {
+		branch += "*"
+	}
+	return branch
 }
 
 // rule renders a full-width horizontal separator.
