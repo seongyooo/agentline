@@ -53,6 +53,18 @@ func activityMarker(l state.ActivityLevel) (string, lipgloss.Style) {
 	return "", styleDim
 }
 
+// targetsAPath reports whether an action's target is a file path. Commands and
+// error messages are not paths, and abbreviating them the way a path is
+// abbreviated would corrupt them: `cmd //c "exit 4"` would come out as
+// `.../c "exit 4"`.
+func targetsAPath(k state.ActionKind) bool {
+	switch k {
+	case state.ActionReading, state.ActionEditing, state.ActionCreating, state.ActionDeleting:
+		return true
+	}
+	return false
+}
+
 // actionVerb is the human-readable verb for an action kind.
 func actionVerb(k state.ActionKind) string {
 	switch k {

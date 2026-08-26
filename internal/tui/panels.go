@@ -9,6 +9,7 @@ import (
 	"github.com/charmbracelet/x/ansi"
 
 	"github.com/seonl/agentview/internal/project"
+	"github.com/seonl/agentview/internal/state"
 )
 
 // treeChrome is the rows the project panel spends on its label and spacer.
@@ -37,11 +38,7 @@ type section struct {
 // missionPanel renders MISSION, NOW, and optionally NEXT, dropping whole
 // sections by rank rather than letting a tight panel clip NOW's target.
 func (m Model) missionPanel(l Layout) []string {
-	action := m.st.Agent.Now
-	now := []string{styleLabel.Render("NOW"), actionVerb(action.Kind)}
-	if action.Target != "" {
-		now = append(now, styleValue.Render(shorten(action.Target)))
-	}
+	now := m.nowLines()
 
 	sections := []section{
 		{rank: 3, lines: []string{styleLabel.Render("MISSION"), valueOrDash(m.st.Agent.Mission)}},
@@ -178,10 +175,42 @@ func (m Model) activityPanel(l Layout) []string {
 		return append(lines, styleDim.Render("No activity yet"))
 	}
 	for _, a := range recent {
-		entry := fmt.Sprintf("%s  %-9s %s", a.At.Format("15:04"), actionVerb(a.Kind), shorten(a.Target))
+		entry := fmt.Sprintf("%s  %-9s %s", a.At.Format("15:04"), actionVerb(a.Kind), displayTarget(a))
 		lines = append(lines, styleDim.Render(strings.TrimRight(entry, " ")))
 	}
 	return lines
+}
+
+// nowLines renders the NOW panel's body.
+//
+// Before any event has arrived there is nothing observed to report, so it says
+// so and names where events are expected from. That turns an unwired setup —
+// hooks not installed, wrong address — into something the developer can see
+// and fix, instead of a UI that looks like an idle agent.
+func (m Model) nowLines() []string {
+	if !m.observedActivity() {
+		lines := []string{styleLabel.Render("NOW"), styleDim.Render("No agent activity yet")}
+		if m.hint != "" {
+			lines = append(lines, styleDim.Render(m.hint))
+		}
+		return lines
+	}
+
+	action := m.st.Agent.Now
+	lines := []string{styleLabel.Render("NOW"), actionVerb(action.Kind)}
+	if action.Target != "" {
+		lines = append(lines, styleValue.Render(displayTarget(action)))
+	}
+	return lines
+}
+
+// displayTarget renders an action's target, abbreviating it only when it is
+// actually a path.
+func displayTarget(a state.Action) string {
+	if targetsAPath(a.Kind) {
+		return shorten(a.Target)
+	}
+	return a.Target
 }
 
 // inputBar renders the prompt affordance. Not yet wired to an agent; it is
