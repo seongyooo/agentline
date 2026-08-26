@@ -16,7 +16,11 @@ const maxActivity = 50
 type ActionKind string
 
 const (
-	ActionIdle     ActionKind = "idle"
+	ActionIdle ActionKind = "idle"
+	// ActionWorking covers observable work with no more specific action yet:
+	// the agent reported that it is busy but has not touched a file or run a
+	// command. It is a summary of reported status, never inferred detail.
+	ActionWorking  ActionKind = "working"
 	ActionReading  ActionKind = "reading"
 	ActionEditing  ActionKind = "editing"
 	ActionCreating ActionKind = "creating"
@@ -105,12 +109,13 @@ func (s *State) Apply(e events.Event) {
 		s.Agent.Status = events.StatusWorking
 
 	case events.CommandEnd:
+		// NOW must move off "Running": the command is no longer running.
 		kind := ActionDone
 		if e.ExitCode != nil && *e.ExitCode != 0 {
 			kind = ActionFailed
 			s.Agent.Status = events.StatusError
 		}
-		s.push(Action{Kind: kind, Target: e.Command, At: e.Timestamp})
+		s.setNow(Action{Kind: kind, Target: e.Command, At: e.Timestamp})
 
 	case events.AgentStatus:
 		s.Agent.Status = e.Status
@@ -119,6 +124,12 @@ func (s *State) Apply(e events.Event) {
 			s.setNow(Action{Kind: ActionWaiting, At: e.Timestamp})
 		case events.StatusDone:
 			s.setNow(Action{Kind: ActionDone, At: e.Timestamp})
+		case events.StatusWorking:
+			// Only a summary: a specific action already on screen is more
+			// informative and must not be overwritten by it.
+			if s.Agent.Now.Kind == ActionIdle {
+				s.setNow(Action{Kind: ActionWorking, At: e.Timestamp})
+			}
 		}
 
 	case events.AgentError:

@@ -73,6 +73,63 @@ func TestStatusTransitions(t *testing.T) {
 	}
 }
 
+// NOW must never contradict the header: a "working" status with nothing more
+// specific observed yet reads as Working, not Idle.
+func TestWorkingStatusReplacesIdle(t *testing.T) {
+	now := time.Now()
+	s := New("/proj")
+
+	e := ev(events.AgentStatus, now)
+	e.Status = events.StatusWorking
+	s.Apply(e)
+
+	if s.Agent.Now.Kind != ActionWorking {
+		t.Errorf("Now.Kind = %q, want %q", s.Agent.Now.Kind, ActionWorking)
+	}
+}
+
+// A specific action is more informative than the status summary, so a
+// "working" report must not overwrite it.
+func TestWorkingStatusKeepsSpecificAction(t *testing.T) {
+	now := time.Now()
+	s := New("/proj")
+
+	edit := ev(events.FileEdit, now)
+	edit.Path = "Drain.cs"
+	s.Apply(edit)
+
+	working := ev(events.AgentStatus, now)
+	working.Status = events.StatusWorking
+	s.Apply(working)
+
+	if s.Agent.Now.Kind != ActionEditing {
+		t.Errorf("Now.Kind = %q, want %q", s.Agent.Now.Kind, ActionEditing)
+	}
+	if s.Agent.Now.Target != "Drain.cs" {
+		t.Errorf("Now.Target = %q, want Drain.cs", s.Agent.Now.Target)
+	}
+}
+
+// A finished command must not keep reading as running.
+func TestCommandEndMovesNowOffRunning(t *testing.T) {
+	now := time.Now()
+	s := New("/proj")
+
+	start := ev(events.CommandStart, now)
+	start.Command = "go test ./..."
+	s.Apply(start)
+
+	exitOK := 0
+	end := ev(events.CommandEnd, now)
+	end.Command = "go test ./..."
+	end.ExitCode = &exitOK
+	s.Apply(end)
+
+	if s.Agent.Now.Kind != ActionDone {
+		t.Errorf("Now.Kind = %q, want %q", s.Agent.Now.Kind, ActionDone)
+	}
+}
+
 func TestCommandEndNonZeroExitIsError(t *testing.T) {
 	now := time.Now()
 	s := New("/proj")
