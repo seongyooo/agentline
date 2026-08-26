@@ -2,6 +2,7 @@
 package main
 
 import (
+	"context"
 	"flag"
 	"fmt"
 	"log"
@@ -11,10 +12,12 @@ import (
 
 	tea "github.com/charmbracelet/bubbletea"
 
+	"github.com/seonl/agentview/internal/agent"
 	"github.com/seonl/agentview/internal/events"
 	"github.com/seonl/agentview/internal/project"
-	"github.com/seonl/agentview/internal/state"
 	"github.com/seonl/agentview/internal/tui"
+
+	"github.com/seonl/agentview/internal/state"
 )
 
 func main() {
@@ -27,6 +30,7 @@ func main() {
 func run() error {
 	rootFlag := flag.String("root", "", "project root (default: detected from the working directory)")
 	mission := flag.String("mission", "", "the high-level goal shown in the MISSION panel")
+	interval := flag.Duration("mock-interval", 2*time.Second, "delay between mock events")
 	flag.Parse()
 
 	root, err := resolveRoot(*rootFlag)
@@ -45,13 +49,31 @@ func run() error {
 	st.Agent.Mission = *mission
 	st.Project.Tree = scanner.NewTree()
 
-	// Until an agent adapter exists, drive the UI from sample events over
-	// files that actually exist in this project.
-	seedMock(st, scanner)
+	// Until a Claude Code adapter exists, the UI is driven by a mock source
+	// replaying activity over files that actually exist in this project.
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	stream, err := startMockSource(ctx, scanner, st.Project.Tree, *interval)
+	if err != nil {
+		log.Printf("no event source: %v", err)
+	}
 
 	log.Printf("starting agentview in %s", root)
-	_, err = tea.NewProgram(tui.New(st, scanner), tea.WithAltScreen()).Run()
+	_, err = tea.NewProgram(tui.New(st, scanner, stream), tea.WithAltScreen()).Run()
 	return err
+}
+
+// startMockSource replays sample activity over real project files. It returns
+// a nil stream when the project has no files to act on, leaving a static UI
+// rather than inventing paths that do not exist.
+func startMockSource(ctx context.Context, scanner *project.Scanner, tree *project.Node, interval time.Duration) (<-chan events.Event, error) {
+	src := &agent.Mock{
+		Paths:    sampleFiles(scanner, tree, 3),
+		Interval: interval,
+		Loop:     true,
+	}
+	return src.Events(ctx)
 }
 
 // resolveRoot honors an explicit --root, otherwise detects the project root
@@ -93,29 +115,6 @@ func setupLogging() (func(), error) {
 	log.SetOutput(f)
 	log.SetFlags(log.LstdFlags)
 	return func() { f.Close() }, nil
-}
-
-// seedMock replays sample activity over real files so the tree, NOW, and the
-// activity log have something to show. Replaced by an agent adapter in a
-// later phase.
-func seedMock(st *state.State, scanner *project.Scanner) {
-	paths := sampleFiles(scanner, st.Project.Tree, 3)
-	if len(paths) == 0 {
-		return
-	}
-
-	kinds := []events.Type{events.FileRead, events.FileEdit, events.FileEdit}
-	now := time.Now()
-
-	for i, p := range paths {
-		st.Apply(events.Event{
-			Type:      kinds[i%len(kinds)],
-			Path:      p,
-			Timestamp: now.Add(-time.Duration(len(paths)-i) * time.Minute),
-			Source:    "claude-code",
-		})
-		scanner.Reveal(st.Project.Tree, p)
-	}
 }
 
 // sampleFiles collects up to n real file paths, preferring shallow ones so
