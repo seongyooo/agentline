@@ -175,7 +175,27 @@ func TestStopBecomesWaitingNotDone(t *testing.T) {
 	}
 }
 
-func TestUserPromptSubmitMarksWorking(t *testing.T) {
+// The prompt is what MISSION is derived from, so it must be carried through
+// verbatim rather than summarized in the adapter.
+func TestUserPromptIsCarriedThrough(t *testing.T) {
+	const raw = `{
+	  "hook_event_name": "UserPromptSubmit",
+	  "prompt": "Read notes.md, append a line, then run: echo done",
+	  "session_id": "fb4d627a"
+	}`
+
+	got := only(t, tr().translate(decode(t, raw)))
+
+	if got.Type != events.UserPrompt {
+		t.Errorf("Type = %q, want %q", got.Type, events.UserPrompt)
+	}
+	if want := "Read notes.md, append a line, then run: echo done"; got.Message != want {
+		t.Errorf("Message = %q, want %q", got.Message, want)
+	}
+}
+
+// A prompt hook with no text still says the agent has been given work.
+func TestUserPromptSubmitWithoutTextMarksWorking(t *testing.T) {
 	got := only(t, tr().translate(payload{HookEventName: hookUserPromptSubmit}))
 
 	if got.Status != events.StatusWorking {

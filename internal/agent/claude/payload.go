@@ -49,6 +49,10 @@ type payload struct {
 	ToolUseID string    `json:"tool_use_id"`
 	ToolInput toolInput `json:"tool_input"`
 
+	// Prompt is the instruction the user typed, delivered with
+	// UserPromptSubmit. It is what MISSION is derived from.
+	Prompt string `json:"prompt"`
+
 	// Error carries a human-readable failure description on
 	// PostToolUseFailure, e.g. "Exit code 3\n3". The numeric status is not
 	// exposed as a field, so it is reported as a failure without a code.

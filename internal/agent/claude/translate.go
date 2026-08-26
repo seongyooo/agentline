@@ -27,7 +27,14 @@ func newTranslator(root string) *translator {
 func (t *translator) translate(p payload) []events.Event {
 	switch p.HookEventName {
 	case hookUserPromptSubmit:
-		// The user just gave the agent work; it is now busy.
+		// The prompt is the user's own statement of what they want, so it is
+		// carried through verbatim; deriving a mission from it is the state
+		// layer's job. A prompt event also means the agent is now busy.
+		if p.Prompt != "" {
+			return []events.Event{t.event(events.UserPrompt, func(e *events.Event) {
+				e.Message = p.Prompt
+			})}
+		}
 		return []events.Event{t.status(events.StatusWorking)}
 
 	case hookPreToolUse:
