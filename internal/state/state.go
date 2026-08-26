@@ -111,7 +111,7 @@ func (s *State) Apply(e events.Event) {
 	case events.CommandEnd:
 		// NOW must move off "Running": the command is no longer running.
 		kind := ActionDone
-		if e.ExitCode != nil && *e.ExitCode != 0 {
+		if e.Failed || (e.ExitCode != nil && *e.ExitCode != 0) {
 			kind = ActionFailed
 			s.Agent.Status = events.StatusError
 		}
@@ -144,9 +144,15 @@ func (s *State) recordFile(kind ActionKind, e events.Event) {
 	s.Project.ActivityByPath[e.Path] = e.Timestamp
 }
 
+// setNow updates the current action and records it. Repeating the action
+// already on screen is not new activity, so it is not logged again: several
+// hooks can report the same state, and the log should show what changed.
 func (s *State) setNow(a Action) {
+	repeat := s.Agent.Now.Kind == a.Kind && s.Agent.Now.Target == a.Target
 	s.Agent.Now = a
-	s.push(a)
+	if !repeat {
+		s.push(a)
+	}
 }
 
 func (s *State) push(a Action) {

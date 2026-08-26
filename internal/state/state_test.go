@@ -1,6 +1,7 @@
 package state
 
 import (
+	"fmt"
 	"testing"
 	"time"
 
@@ -145,13 +146,51 @@ func TestCommandEndNonZeroExitIsError(t *testing.T) {
 	}
 }
 
+// Several hooks can report the same state in a row; the log should show what
+// changed, not repeat an entry already on screen.
+func TestRepeatedActionIsNotLoggedTwice(t *testing.T) {
+	now := time.Now()
+	s := New("/proj")
+
+	waiting := ev(events.AgentStatus, now)
+	waiting.Status = events.StatusWaiting
+	s.Apply(waiting)
+	s.Apply(waiting)
+
+	if got := len(s.Agent.Activity); got != 1 {
+		t.Errorf("Activity = %d entries, want 1", got)
+	}
+}
+
+// A genuine return to an earlier action is still new activity.
+func TestReturningToAnActionIsLogged(t *testing.T) {
+	now := time.Now()
+	s := New("/proj")
+
+	read := ev(events.FileRead, now)
+	read.Path = "a.go"
+	s.Apply(read)
+
+	other := ev(events.FileRead, now)
+	other.Path = "b.go"
+	s.Apply(other)
+
+	s.Apply(read)
+
+	if got := len(s.Agent.Activity); got != 3 {
+		t.Errorf("Activity = %d entries, want 3", got)
+	}
+}
+
 func TestActivityIsBounded(t *testing.T) {
 	now := time.Now()
 	s := New("/proj")
 
+	// Distinct paths, so every event is genuinely new activity rather than a
+	// repeat the log would collapse.
 	for i := 0; i < maxActivity+20; i++ {
 		e := ev(events.FileRead, now)
-		e.Path = "a.cs"
+		e.Path = fmt.Sprintf("file%d.cs", i)
 		s.Apply(e)
 	}
 

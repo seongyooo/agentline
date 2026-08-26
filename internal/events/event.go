@@ -38,11 +38,19 @@ type Event struct {
 	Timestamp time.Time `json:"timestamp"`
 	Source    string    `json:"source"`
 
-	Path     string `json:"path,omitempty"`
-	Command  string `json:"command,omitempty"`
-	Status   Status `json:"status,omitempty"`
-	ExitCode *int   `json:"exit_code,omitempty"`
-	Message  string `json:"message,omitempty"`
+	Path    string `json:"path,omitempty"`
+	Command string `json:"command,omitempty"`
+	Status  Status `json:"status,omitempty"`
+	Message string `json:"message,omitempty"`
+
+	// Failed marks a command that did not succeed. It is separate from
+	// ExitCode because some agents report only that a command failed, without
+	// a numeric status; AgentView records what it observed and does not
+	// invent a code it was never given.
+	Failed bool `json:"failed,omitempty"`
+
+	// ExitCode is set only when the agent actually reported one.
+	ExitCode *int `json:"exit_code,omitempty"`
 }
 
 // Valid reports whether the event carries the fields its Type requires.
