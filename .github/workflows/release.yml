@@ -1,0 +1,34 @@
+name: release
+
+on:
+  push:
+    tags: ["v*"]
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          # GoReleaser builds the changelog from the commits since the last
+          # tag, which it cannot see in a shallow clone.
+          fetch-depth: 0
+
+      - uses: actions/setup-go@v6
+        with:
+          go-version-file: go.mod
+
+      - uses: goreleaser/goreleaser-action@v6
+        with:
+          version: "~> v2"
+          args: release --clean
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          # Publishing the Homebrew tap and Scoop bucket means writing to
+          # other repositories, which the built-in token cannot do. Absent
+          # this secret those two steps skip themselves and the release still
+          # ships its binaries.
+          TAP_TOKEN: ${{ secrets.TAP_TOKEN }}

@@ -244,3 +244,6 @@ FAKE-NOTES.md
 # Coverage and profiling output
 coverage.*
 *.prof
+
+# GoReleaser build output
+/dist/

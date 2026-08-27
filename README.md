@@ -76,20 +76,42 @@ sections (`NEXT`, then `REPLY`) before it will clip `NOW`.
 
 ## Install
 
+No Go toolchain needed — these download a released binary.
+
+**macOS and Linux**
+
+```sh
+curl -fsSL https://raw.githubusercontent.com/seongyooo/agentline/main/install.sh | sh
+```
+
+**Windows**
+
+```powershell
+irm https://raw.githubusercontent.com/seongyooo/agentline/main/install.ps1 | iex
+```
+
+Or take the archive for your platform from the
+[releases page](https://github.com/seongyooo/agentline/releases) and put the binary
+somewhere on your `PATH`.
+
+<details>
+<summary>With Go, or from source</summary>
+
 ```sh
 go install github.com/seongyooo/agentline/cmd/agentline@latest
 ```
 
-Requires Go 1.26+, and puts `agentline` in `$(go env GOPATH)/bin` — add that to your
-`PATH` if it is not there already.
+Requires Go 1.26+ and puts `agentline` in `$(go env GOPATH)/bin`.
 
-To work on it instead:
+To work on it:
 
 ```sh
 git clone https://github.com/seongyooo/agentline
 cd agentline
 go build ./cmd/agentline
 ```
+
+</details>
 
 ---
 

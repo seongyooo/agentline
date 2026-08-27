@@ -1,0 +1,82 @@
+version: 2
+
+# Most people who would use AgentLine are not Go developers — they are people
+# who use Claude Code. Requiring a Go toolchain to try a terminal UI is the
+# single biggest thing standing between the project and its users, so every
+# tagged release ships binaries they can just run.
+
+project_name: agentline
+
+before:
+  hooks:
+    - go mod tidy
+
+builds:
+  - id: agentline
+    main: ./cmd/agentline
+    binary: agentline
+    env:
+      - CGO_ENABLED=0
+    goos: [linux, darwin, windows]
+    goarch: [amd64, arm64]
+    ldflags:
+      - -s -w -X main.version={{.Version}}
+
+archives:
+  - formats: [tar.gz]
+    # Windows users are far more likely to have something that opens a zip
+    # than something that opens a tar.gz.
+    format_overrides:
+      - goos: windows
+        formats: [zip]
+    files:
+      - README.md
+      - LICENSE
+
+checksum:
+  name_template: checksums.txt
+
+# Homebrew and Scoop publish by pushing to a second repository, which the
+# built-in workflow token cannot do. Both are skipped unless TAP_TOKEN is set,
+# so a release always ships its binaries — the part that matters — whether or
+# not the package managers are wired up.
+#
+# To turn them on: create `homebrew-tap` and `scoop-bucket` repositories, then
+# add a personal access token with `repo` scope as the TAP_TOKEN secret.
+homebrew_casks:
+  - name: agentline
+    skip_upload: '{{ if index .Env "TAP_TOKEN" }}false{{ else }}true{{ end }}'
+    repository:
+      owner: seongyooo
+      name: homebrew-tap
+      token: "{{ .Env.TAP_TOKEN }}"
+    homepage: https://github.com/seongyooo/agentline
+    description: A terminal observability UI for AI coding agents
+    license: MIT
+    hooks:
+      post:
+        # macOS quarantines anything downloaded and unsigned, and refuses to
+        # run it until a human clears the flag through a dialog. Clearing it
+        # here is what makes `brew install` end with a working command.
+        install: |
+          if system_command("/usr/bin/xattr", args: ["-h"]).exit_status == 0
+            system_command "/usr/bin/xattr", args: ["-dr", "com.apple.quarantine", "#{staged_path}/agentline"]
+          end
+
+scoops:
+  - skip_upload: '{{ if index .Env "TAP_TOKEN" }}false{{ else }}true{{ end }}'
+    repository:
+      owner: seongyooo
+      name: scoop-bucket
+      token: "{{ .Env.TAP_TOKEN }}"
+    homepage: https://github.com/seongyooo/agentline
+    description: A terminal observability UI for AI coding agents
+    license: MIT
+
+changelog:
+  sort: asc
+  filters:
+    exclude:
+      - "^docs:"
+      - "^test:"
+      - "^chore:"
