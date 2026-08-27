@@ -58,12 +58,10 @@ func TestReopenedTaskIsNoLongerDone(t *testing.T) {
 func TestWholeListToolReplacesTheCount(t *testing.T) {
 	list := newTaskList()
 
-	todos := taskFields{}
-	todos.Todos = append(todos.Todos, struct {
-		Status string `json:"status"`
-	}{Status: "completed"}, struct {
-		Status string `json:"status"`
-	}{Status: "pending"})
+	todos := taskFields{Todos: []todoEntry{
+		{Content: "Read the drainage system", Status: "completed"},
+		{Content: "Wire the valve", ActiveForm: "Wiring the valve", Status: "in_progress"},
+	}}
 
 	for i := 0; i < 3; i++ {
 		done, total, ok := list.observe(toolTodoWrite, todos)

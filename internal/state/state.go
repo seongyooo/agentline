@@ -109,6 +109,10 @@ type AgentState struct {
 	// turn landed. AgentLine shows a line of it, never the conversation.
 	Reply string
 
+	// Tasks is the agent's own list, when it keeps one. The words are its
+	// own; AgentLine never breaks work into steps of its own devising.
+	Tasks []events.Task
+
 	// Progress counts the agent's own task list. Its zero value means the
 	// agent is not keeping one, and AgentLine then shows no progress at all
 	// rather than estimating any.
@@ -306,6 +310,9 @@ func (s *State) Apply(e events.Event) {
 
 	case events.TaskProgress:
 		s.Agent.Progress = Progress{Done: e.Done, Total: e.Total}
+		// Replaced wholesale. The agent rewrites its list rather than
+		// amending it, so merging would keep steps it has since dropped.
+		s.Agent.Tasks = e.Tasks
 
 	case events.PermissionAsk:
 		// The agent is stopped until this is answered, which outranks

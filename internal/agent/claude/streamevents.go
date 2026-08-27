@@ -264,6 +264,7 @@ func (t *streamTranslator) assistant(e streamEvent) []events.Event {
 			if done, total, ok := t.tasks.observe(block.Name, block.Input.taskFields); ok {
 				out = append(out, t.event(events.TaskProgress, func(ev *events.Event) {
 					ev.Done, ev.Total = done, total
+					ev.Tasks = t.tasks.Tasks()
 				}))
 			}
 

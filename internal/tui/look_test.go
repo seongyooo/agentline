@@ -42,7 +42,14 @@ func TestLook(t *testing.T) {
 
 	for _, e := range []events.Event{
 		{Type: events.UserPrompt, Message: "Wire the drainage system to the valve", Timestamp: now.Add(-5 * time.Minute), Source: "claude-code"},
-		{Type: events.TaskProgress, Done: 2, Total: 5, Timestamp: now.Add(-5 * time.Minute), Source: "claude-code"},
+		{Type: events.TaskProgress, Done: 2, Total: 5, Timestamp: now.Add(-5 * time.Minute), Source: "claude-code",
+			Tasks: []events.Task{
+				{Text: "Read the drainage system", Done: true},
+				{Text: "Add the valve interface", Done: true},
+				{Text: "Wire the valve to the pump", Doing: "Wiring the valve to the pump", Now: true},
+				{Text: "Update the room script"},
+				{Text: "Run the tests"},
+			}},
 		{Type: events.FileRead, Path: "Assets/Scripts/Rooms/WaterRoom.cs", Timestamp: now.Add(-4 * time.Minute), Source: "claude-code"},
 		{Type: events.CommandStart, Command: "go test ./internal/git", Message: "Run the git package tests", Timestamp: now.Add(-3 * time.Minute), Source: "claude-code"},
 		{Type: events.CommandEnd, Command: "go test ./internal/git", Message: "Run the git package tests", Timestamp: now.Add(-2 * time.Minute), Source: "claude-code"},

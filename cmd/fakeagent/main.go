@@ -329,7 +329,14 @@ func (a *agent) progress(done, total int) {
 		if i < done {
 			status = "completed"
 		}
-		todos = append(todos, map[string]any{"status": status})
+		// Both wordings, the way the real agent is asked to supply them: the
+		// imperative for the list and the present tense for what is in hand.
+		text := planSteps[i%len(planSteps)]
+		todos = append(todos, map[string]any{
+			"status":     status,
+			"content":    text.content,
+			"activeForm": text.active,
+		})
 	}
 
 	a.toolUse(toolID(), "TodoWrite", map[string]any{"todos": todos})
@@ -573,4 +580,15 @@ func (a *agent) spin(rounds int) []func() {
 		)
 	}
 	return steps
+}
+
+// planSteps are the things the stand-in claims to be doing. Canned, like its
+// replies, but shaped the way a real task list is shaped so what AgentLine
+// reads is what it would read from one.
+var planSteps = []struct{ content, active string }{
+	{"Read the project files", "Reading the project files"},
+	{"Adjust the notes file", "Adjusting the notes file"},
+	{"Run the build", "Running the build"},
+	{"Check the result", "Checking the result"},
+	{"Write up what changed", "Writing up what changed"},
 }

@@ -76,6 +76,12 @@ PULSE  █▆▆█▆▆█▆▆█▆▁     ▄▆█▆▆█▆▆█▆�
   only thing AgentLine interrupts you for, and the reason the rest of it can stay quiet.
   It needs a session AgentLine owns (`--run`); watching one from the outside means the
   question was never routed here.
+- **PLAN** — the agent's own list of steps, in its own words, with what is done, what
+  is in hand and what is left. AgentLine never breaks work into steps of its own: an
+  agent that keeps a list has already made those judgements and sends them, so this is
+  read rather than inferred. `NOW` uses the present-tense wording the agent supplies for
+  the step in hand, so it says what the work is for rather than which tool is running.
+  An agent that keeps no list gets no panel.
 - **SPINNING** — an agent that is working and getting nowhere: one file rewritten over
   and over, the same command failing the same way, minutes of activity that reach nothing
   new. The panel states what was counted — `Valve.cs written 6 times`, `4 failures in the
@@ -345,6 +351,7 @@ assumed.
 - **Codex against the real binary** — the adapter is written and covered, but has only
   been run against a stand-in.
 - **Since you looked away** — the net effect of a stretch of work, not just its shape.
+- **Plan history** — which steps were added, dropped or reordered as the work went on.
 - **More patterns worth counting** — beyond repetition: cost per turn that stops falling,
   a task list that stops moving.
 - **Deeper Git awareness** — beyond the current branch and changed files.

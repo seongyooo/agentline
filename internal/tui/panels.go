@@ -99,6 +99,12 @@ func (m Model) missionSections(l Layout) []section {
 	if lines := m.replyLines(); lines != nil {
 		sections = append(sections, section{rank: rankReply, lines: m.replyPanel(l, lines)})
 	}
+	// The agent's own steps, when it keeps them. Below MISSION because the
+	// goal is what the plan is for, and above NEXT because a plan the agent
+	// wrote beats a field nothing fills in.
+	if lines := m.planLines(l.MissionInner()); lines != nil {
+		sections = append(sections, section{rank: rankPlan, lines: lines})
+	}
 	if l.ShowNext {
 		sections = append(sections, section{rank: rankNext, lines: []string{styleLabel.Render("NEXT"), valueOrDash(m.st.Agent.Next)}})
 	}
@@ -112,6 +118,7 @@ const (
 	rankNow     = 2
 	rankReply   = 3
 	rankMission = 4
+	rankPlan    = 5
 	rankNext    = 7
 )
 
@@ -729,10 +736,19 @@ func (m Model) nowLines() []string {
 
 	lines := []string{styleLabel.Render("NOW"), verb}
 
+	// The agent's own present-tense wording for the step it is on, when it
+	// gave one. It says what the work is for, which neither a tool name nor a
+	// file path does, and it costs no row: it goes where the tool's own
+	// description would have gone.
+	summary := action.Summary
+	if task, ok := m.activeTask(); ok && task.Doing != "" {
+		summary = task.Doing
+	}
+
 	// What the agent said it is doing, when it said anything. A raw command
 	// shows what was typed but not what it is for, so the description leads
 	// and the command becomes the detail underneath it.
-	if summary := action.Summary; summary != "" {
+	if summary != "" {
 		lines = append(lines, styleValue.Render(summary))
 		if detail := displayTarget(action); detail != "" && detail != summary {
 			lines = append(lines, styleDim.Render(detail))

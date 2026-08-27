@@ -55,6 +55,28 @@ const (
 	PermissionAnswered Type = "permission_answered"
 )
 
+// Task is one entry of the agent's own task list.
+//
+// The words are the agent's. AgentLine does not break work into steps — that
+// is a judgement about the work, and §24 rules it out — but an agent that
+// keeps a list has already made those judgements and is sending them. Reading
+// them is observation; the alternative was throwing away the text and keeping
+// the count, which is what happened until now.
+type Task struct {
+	// Text is what the agent said it would do, in the imperative.
+	Text string `json:"text,omitempty"`
+
+	// Doing is the agent's present-tense wording for the same task, which it
+	// supplies so a UI can say what is happening rather than what is planned.
+	Doing string `json:"doing,omitempty"`
+
+	Done bool `json:"done,omitempty"`
+
+	// Now marks the task the agent says it is on. There is normally exactly
+	// one, but nothing is assumed: the agent decides, and it can decide none.
+	Now bool `json:"now,omitempty"`
+}
+
 // Status is the agent's observable lifecycle state.
 type Status string
 
@@ -93,6 +115,11 @@ type Event struct {
 	// Done and Total carry a TaskProgress count.
 	Done  int `json:"done,omitempty"`
 	Total int `json:"total,omitempty"`
+
+	// Tasks is the agent's own list, when it reported one with its progress.
+	// The count is a summary of this; both travel together so nothing has to
+	// be recomputed from a number.
+	Tasks []Task `json:"tasks,omitempty"`
 
 	// Session carries a SessionInfo report.
 	Session *Session `json:"session,omitempty"`

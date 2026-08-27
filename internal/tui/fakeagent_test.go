@@ -410,3 +410,33 @@ func TestStandInCanBeMadeToSpin(t *testing.T) {
 		t.Errorf("the frame reports spinning without saying what was counted:\n%s", out)
 	}
 }
+
+// The plan has to survive the whole path: the agent's tool call, the adapter
+// that decodes it, and the panel that draws it. The text was being decoded
+// away and only the count kept, so this is what says it still arrives.
+func TestStandInDeliversItsPlan(t *testing.T) {
+	m, session, stream := standIn(t)
+
+	if err := session.Send("write the readme"); err != nil {
+		t.Fatal(err)
+	}
+	m = pump(t, m, stream, 60*time.Second, func(m Model) bool { return len(m.st.Agent.Tasks) > 0 })
+
+	tasks := m.st.Agent.Tasks
+	if len(tasks) == 0 {
+		t.Fatal("no plan arrived")
+	}
+	if tasks[0].Text == "" {
+		t.Errorf("the plan arrived with no words: %+v", tasks[0])
+	}
+
+	var doing bool
+	for _, task := range tasks {
+		if task.Doing != "" {
+			doing = true
+		}
+	}
+	if !doing {
+		t.Error("no present-tense wording arrived; NOW has nothing to say")
+	}
+}
