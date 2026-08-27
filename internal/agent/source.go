@@ -1,4 +1,4 @@
-// Package agent defines the seam between a coding agent and AgentView.
+// Package agent defines the seam between a coding agent and AgentLine.
 //
 // Each backend — Claude Code, and later others — implements Source by
 // translating whatever it emits into the normalized event model. Nothing
@@ -9,7 +9,7 @@ package agent
 import (
 	"context"
 
-	"github.com/seonl/agentview/internal/events"
+	"github.com/seongyooo/agentline/internal/events"
 )
 
 // Source produces normalized events from a running agent.

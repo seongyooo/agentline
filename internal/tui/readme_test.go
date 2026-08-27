@@ -9,9 +9,9 @@ import (
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/x/ansi"
 
-	"github.com/seonl/agentview/internal/events"
-	"github.com/seonl/agentview/internal/project"
-	"github.com/seonl/agentview/internal/state"
+	"github.com/seongyooo/agentline/internal/events"
+	"github.com/seongyooo/agentline/internal/project"
+	"github.com/seongyooo/agentline/internal/state"
 )
 
 // TestReadmeFrame renders the frame the README shows, so the picture in the

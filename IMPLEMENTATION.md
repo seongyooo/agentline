@@ -1,8 +1,8 @@
-# AgentView — Implementation Plan
+# AgentLine — Implementation Plan
 
 ## 1. Project Overview
 
-AgentView is a terminal-based observability UI for AI coding agents.
+AgentLine is a terminal-based observability UI for AI coding agents.
 
 The goal is **not** to create another code editor, Git client, or Claude Code clone.
 
@@ -25,7 +25,7 @@ The architecture must remain extensible so that other coding agents such as Code
 
 > Don't show the code. Show what the agent is doing.
 
-AgentView should provide situational awareness rather than detailed implementation information.
+AgentLine should provide situational awareness rather than detailed implementation information.
 
 Users already have:
 
@@ -34,7 +34,7 @@ Users already have:
 - lazygit for detailed Git operations
 - Claude Code statusline for token/cost information
 
-AgentView should **not** duplicate these tools.
+AgentLine should **not** duplicate these tools.
 
 The product should feel closer to an **AI Agent Observatory** than a terminal IDE.
 
@@ -48,7 +48,7 @@ Conceptual layout:
 
 ```text
 ┌────────────────────────────────────────────────────────────┐
-│ AGENTVIEW                           ● CLAUDE CODE  WORKING │
+│ AGENTLINE                           ● CLAUDE CODE  WORKING │
 ├───────────────────────────┬────────────────────────────────┤
 │ PROJECT                   │ MISSION                        │
 │                           │                                │
@@ -90,14 +90,14 @@ The UI should contain these major areas.
 
 Display:
 
-- AgentView name
+- AgentLine name
 - Current agent
 - Agent status
 
 Example:
 
 ```text
-AGENTVIEW                         ● CLAUDE CODE  WORKING
+AGENTLINE                         ● CLAUDE CODE  WORKING
 ```
 
 Possible states:
@@ -325,7 +325,7 @@ Prefer meaningful actions.
 
 # 9. Claude Code Input
 
-AgentView should eventually allow the user to interact with Claude Code directly.
+AgentLine should eventually allow the user to interact with Claude Code directly.
 
 The bottom area should provide:
 
@@ -347,9 +347,9 @@ Then implement direct input.
 
 ---
 
-# 10. What AgentView Should NOT Become
+# 10. What AgentLine Should NOT Become
 
-Do NOT turn AgentView into:
+Do NOT turn AgentLine into:
 
 - a full code editor
 - a VS Code replacement
@@ -598,21 +598,21 @@ Do **not** implement commit/push/pull UI in the MVP.
 
 lazygit already solves that problem.
 
-Git information should support the AgentView concept rather than become a separate feature area.
+Git information should support the AgentLine concept rather than become a separate feature area.
 
 ---
 
 # 17. Claude Code Launcher / Process Model
 
-AgentView will eventually need to manage or attach to a Claude Code process.
+AgentLine will eventually need to manage or attach to a Claude Code process.
 
 The preferred user experience is:
 
 ```bash
-agentview
+agentline
 ```
 
-Then AgentView starts or connects to Claude Code and presents the observability UI.
+Then AgentLine starts or connects to Claude Code and presents the observability UI.
 
 However, process management should be implemented only after the event pipeline works.
 
@@ -621,7 +621,7 @@ Do not tightly couple process lifetime to the TUI before the architecture is sta
 The application should eventually support:
 
 ```text
-AgentView
+AgentLine
     │
     ├── Agent process
     ├── Event collector
@@ -643,7 +643,7 @@ The input box should eventually allow:
 Behavior:
 
 1. User types a prompt.
-2. AgentView sends it to Claude Code.
+2. AgentLine sends it to Claude Code.
 3. Claude Code continues execution.
 4. Agent events flow back into the collector.
 5. State updates.
@@ -651,9 +651,9 @@ Behavior:
 
 The input UI should not become a second chat interface.
 
-Do not render the entire assistant response inside AgentView.
+Do not render the entire assistant response inside AgentLine.
 
-AgentView is for situational awareness.
+AgentLine is for situational awareness.
 
 ---
 
@@ -861,7 +861,7 @@ Do not implement advanced Git functionality yet.
 
 ### Deliverable
 
-AgentView can display a real project structure.
+AgentLine can display a real project structure.
 
 ---
 
@@ -920,7 +920,7 @@ TUI update
 
 ### Deliverable
 
-Real Claude Code activity appears in AgentView.
+Real Claude Code activity appears in AgentLine.
 
 ---
 
@@ -939,7 +939,7 @@ At this point the application should already be genuinely useful.
 
 ### Deliverable
 
-A developer can run Claude Code and observe its work through AgentView.
+A developer can run Claude Code and observe its work through AgentLine.
 
 ---
 
@@ -948,7 +948,7 @@ A developer can run Claude Code and observe its work through AgentView.
 Allow:
 
 ```bash
-agentview
+agentline
 ```
 
 to launch/manage Claude Code.
@@ -959,13 +959,13 @@ Implement the input box:
 > Ask Claude Code...
 ```
 
-The user should be able to send prompts without leaving AgentView.
+The user should be able to send prompts without leaving AgentLine.
 
 Do this only after the observation pipeline is stable.
 
 ### Deliverable
 
-AgentView becomes a practical entry point for Claude Code.
+AgentLine becomes a practical entry point for Claude Code.
 
 ---
 
@@ -986,7 +986,7 @@ Later, design an optional intelligence layer for:
 
 ### Deliverable
 
-AgentView can display the high-level purpose of the current agent session.
+AgentLine can display the high-level purpose of the current agent session.
 
 ---
 
@@ -1010,7 +1010,7 @@ Git state enhances project awareness without becoming a Git UI.
 
 Do not implement this in the first MVP.
 
-Eventually, AgentView may transform low-level events:
+Eventually, AgentLine may transform low-level events:
 
 ```text
 Read WaterRoom.cs
@@ -1059,7 +1059,7 @@ when appropriate.
 
 This is a high-priority future feature.
 
-AgentView should make moments requiring human attention visually obvious.
+AgentLine should make moments requiring human attention visually obvious.
 
 Examples:
 
@@ -1085,7 +1085,7 @@ The purpose is:
 
 > The developer should not have to constantly watch the terminal.
 
-This feature should eventually allow the user to leave AgentView running and only return when something important happens.
+This feature should eventually allow the user to leave AgentLine running and only return when something important happens.
 
 For MVP, implement only if the underlying agent events reliably expose these states.
 
@@ -1115,7 +1115,7 @@ Normalized Events
       ↓
 Common State Model
       ↓
-AgentView TUI
+AgentLine TUI
 ```
 
 Never make the UI depend on a single provider's terminology if avoidable.
@@ -1168,7 +1168,7 @@ waiting → working
 
 # 28. Error Handling
 
-AgentView must fail gracefully.
+AgentLine must fail gracefully.
 
 Examples:
 
@@ -1189,7 +1189,7 @@ Log diagnostic information separately from the main UI.
 
 # 29. Performance
 
-AgentView should be lightweight.
+AgentLine should be lightweight.
 
 Avoid:
 
@@ -1209,7 +1209,7 @@ Large repositories must remain usable.
 
 # 30. Security and Privacy
 
-AgentView may observe:
+AgentLine may observe:
 
 - file paths
 - commands
@@ -1230,7 +1230,7 @@ Do not log sensitive prompts or source code unnecessarily.
 
 Create a concise README containing:
 
-- what AgentView is
+- what AgentLine is
 - why it exists
 - screenshots/GIF when available
 - installation
@@ -1251,9 +1251,9 @@ Keep the repository clean and approachable.
 Recommended structure:
 
 ```text
-agentview/
+agentline/
 ├── cmd/
-│   └── agentview/
+│   └── agentline/
 ├── internal/
 │   ├── agent/
 │   ├── events/
@@ -1279,7 +1279,7 @@ Do not create unnecessary abstractions.
 
 The MVP is successful when a developer can:
 
-1. Start AgentView in a project.
+1. Start AgentLine in a project.
 2. Start/use Claude Code through it.
 3. See whether Claude is working, waiting, done, or needs input.
 4. See the file Claude is currently interacting with.
@@ -1346,7 +1346,7 @@ Do not add:
 - token/cost analytics
 - full chat transcript
 
-These are outside AgentView's core purpose.
+These are outside AgentLine's core purpose.
 
 ### Rule 7 — Prefer observable facts
 
@@ -1358,11 +1358,11 @@ If something is inferred, distinguish it from observed state.
 
 # 35. Final Product Principle
 
-AgentView is not:
+AgentLine is not:
 
 > "A prettier Claude Code."
 
-AgentView is:
+AgentLine is:
 
 > **A situational-awareness layer for AI coding agents.**
 
@@ -1384,7 +1384,7 @@ NEEDS YOU
 
 Everything else is secondary.
 
-The user should be able to glance at AgentView and immediately understand:
+The user should be able to glance at AgentLine and immediately understand:
 
 > **"What is my AI doing, where is it working, what is it trying to accomplish, and do I need to intervene?"**
 

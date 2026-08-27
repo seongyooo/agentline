@@ -9,7 +9,7 @@ import "github.com/mattn/go-runewidth"
 // with go-runewidth's default condition, which auto-detects an East Asian
 // locale and then calls those characters two cells wide.
 //
-// AgentView is drawn almost entirely out of characters in that ambiguous set —
+// AgentLine is drawn almost entirely out of characters in that ambiguous set —
 // the rules, the column divider, the activity markers, the ellipsis. In a
 // Korean locale the renderer therefore believed every line was far wider than
 // the layout had built it, its cursor bookkeeping drifted, and the output

@@ -3,7 +3,7 @@ package claude
 import (
 	"testing"
 
-	"github.com/seonl/agentview/internal/events"
+	"github.com/seongyooo/agentline/internal/events"
 )
 
 func TestTaskCreationsAreCounted(t *testing.T) {

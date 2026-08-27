@@ -11,7 +11,7 @@ import (
 	"sync/atomic"
 	"time"
 
-	"github.com/seonl/agentview/internal/events"
+	"github.com/seongyooo/agentline/internal/events"
 )
 
 // DefaultAddr is where the adapter listens for hook deliveries. It binds to
@@ -67,7 +67,7 @@ func (a *Adapter) Dropped() int64 { return a.dropped.Load() }
 
 // Events starts the receiver and streams normalized events until ctx is done.
 //
-// It returns an error if the port cannot be bound — usually another AgentView
+// It returns an error if the port cannot be bound — usually another AgentLine
 // already listening — so the caller can report that instead of appearing to
 // work while receiving nothing.
 func (a *Adapter) Events(ctx context.Context) (<-chan events.Event, error) {
@@ -124,7 +124,7 @@ func (a *Adapter) handle(w http.ResponseWriter, r *http.Request) {
 	var p payload
 	err := json.NewDecoder(r.Body).Decode(&p)
 
-	// Answer first, whatever happened: a malformed payload is AgentView's
+	// Answer first, whatever happened: a malformed payload is AgentLine's
 	// problem to log, never a reason to interfere with the agent's work.
 	w.WriteHeader(http.StatusOK)
 

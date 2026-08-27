@@ -17,7 +17,7 @@ import (
 
 // FileStatus is how a file differs from the last commit. The distinction
 // between staged and unstaged is deliberately not made: acting on it would
-// require a Git UI, which AgentView is not.
+// require a Git UI, which AgentLine is not.
 type FileStatus int
 
 const (
@@ -59,7 +59,7 @@ func (s Status) Available() bool { return s.Branch != "" || s.Detached || s.File
 // Load reads the repository containing root.
 //
 // A directory that is not a repository, or a machine with no git installed, is
-// not an error: it returns the zero Status, and AgentView simply shows no Git
+// not an error: it returns the zero Status, and AgentLine simply shows no Git
 // information rather than failing.
 func Load(ctx context.Context, root string) Status {
 	top, err := run(ctx, root, "rev-parse", "--show-toplevel")
@@ -121,7 +121,7 @@ func parse(out, topLevel, root string) Status {
 
 		rel := relative(topLevel, root, path)
 		if rel == "" {
-			continue // outside the directory AgentView is showing
+			continue // outside the directory AgentLine is showing
 		}
 		if code == "??" {
 			status.Files[rel] = Untracked
@@ -152,7 +152,7 @@ func parseBranch(header string) (branch string, detached bool) {
 }
 
 // relative converts a repository-relative path to one relative to the
-// directory AgentView is showing, which is not always the repository root.
+// directory AgentLine is showing, which is not always the repository root.
 // Anything outside it returns empty so it is dropped.
 func relative(topLevel, root, repoPath string) string {
 	// Git marks directory entries with a trailing slash; the tree keys on the

@@ -10,9 +10,9 @@ import (
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/x/ansi"
 
-	"github.com/seonl/agentview/internal/agent"
-	"github.com/seonl/agentview/internal/project"
-	"github.com/seonl/agentview/internal/state"
+	"github.com/seongyooo/agentline/internal/agent"
+	"github.com/seongyooo/agentline/internal/project"
+	"github.com/seongyooo/agentline/internal/state"
 )
 
 // TestLivePreview prints the NOW/status line after each event so the pipeline

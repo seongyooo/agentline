@@ -5,7 +5,7 @@ import (
 	"path/filepath"
 	"testing"
 
-	"github.com/seonl/agentview/internal/events"
+	"github.com/seongyooo/agentline/internal/events"
 )
 
 const root = `C:\proj`

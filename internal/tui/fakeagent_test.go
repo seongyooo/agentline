@@ -12,13 +12,13 @@ import (
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/x/ansi"
 
-	"github.com/seonl/agentview/internal/agent/claude"
-	"github.com/seonl/agentview/internal/events"
-	"github.com/seonl/agentview/internal/project"
-	"github.com/seonl/agentview/internal/state"
+	"github.com/seongyooo/agentline/internal/agent/claude"
+	"github.com/seongyooo/agentline/internal/events"
+	"github.com/seongyooo/agentline/internal/project"
+	"github.com/seongyooo/agentline/internal/state"
 )
 
-// The stand-in agent exists so the whole of AgentView can be exercised
+// The stand-in agent exists so the whole of AgentLine can be exercised
 // without paying for a session. That is only worth anything if it drives the
 // same path a real one does, so this runs it through the real adapter and
 // checks the interface fills in.
@@ -264,7 +264,7 @@ func buildStandIn(t *testing.T) string {
 	t.Helper()
 
 	bin := filepath.Join(t.TempDir(), "fakeagent.exe")
-	build := exec.Command("go", "build", "-o", bin, "github.com/seonl/agentview/cmd/fakeagent")
+	build := exec.Command("go", "build", "-o", bin, "github.com/seongyooo/agentline/cmd/fakeagent")
 	if out, err := build.CombinedOutput(); err != nil {
 		t.Fatalf("build fakeagent: %v\n%s", err, out)
 	}

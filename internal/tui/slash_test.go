@@ -8,10 +8,10 @@ import (
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/x/ansi"
 
-	"github.com/seonl/agentview/internal/agent/claude"
-	"github.com/seonl/agentview/internal/events"
-	"github.com/seonl/agentview/internal/project"
-	"github.com/seonl/agentview/internal/state"
+	"github.com/seongyooo/agentline/internal/agent/claude"
+	"github.com/seongyooo/agentline/internal/events"
+	"github.com/seongyooo/agentline/internal/project"
+	"github.com/seongyooo/agentline/internal/state"
 )
 
 // controllingSender records prompts and permission mode changes.
@@ -41,7 +41,7 @@ func (c *controllingSender) RequestContextUsage() error {
 	return nil
 }
 
-// announced returns a model whose session has told AgentView what it accepts.
+// announced returns a model whose session has told AgentLine what it accepts.
 func announced(t *testing.T, commands ...string) (Model, *controllingSender) {
 	t.Helper()
 
@@ -165,7 +165,7 @@ func TestSlashCommandIsSentAsTypedText(t *testing.T) {
 	}
 }
 
-// A session AgentView owns has no picker of its own, so /model with a name is
+// A session AgentLine owns has no picker of its own, so /model with a name is
 // carried out over the control protocol rather than sent as text that would
 // do nothing.
 func TestModelCommandSwitchesTheModel(t *testing.T) {
@@ -198,7 +198,7 @@ func TestDefaultModelResetsRatherThanNamingAModel(t *testing.T) {
 	}
 }
 
-// Only observing a session means AgentView cannot switch models, so the text
+// Only observing a session means AgentLine cannot switch models, so the text
 // goes to the agent rather than being swallowed by a feature that is absent.
 func TestModelCommandFallsBackToTextWithoutAController(t *testing.T) {
 	st := state.New("/proj")

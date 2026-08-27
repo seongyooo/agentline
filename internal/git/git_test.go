@@ -144,7 +144,7 @@ func TestRenameReportsOnlyTheNewPath(t *testing.T) {
 	}
 }
 
-// AgentView may be rooted below the repository root; paths must be reported
+// AgentLine may be rooted below the repository root; paths must be reported
 // relative to what it is showing, and anything above it dropped.
 func TestPathsAreRelativeToTheShownDirectory(t *testing.T) {
 	root := repo(t)

@@ -9,9 +9,9 @@ import (
 	"github.com/charmbracelet/x/ansi"
 	"github.com/mattn/go-runewidth"
 
-	"github.com/seonl/agentview/internal/events"
-	"github.com/seonl/agentview/internal/project"
-	"github.com/seonl/agentview/internal/state"
+	"github.com/seongyooo/agentline/internal/events"
+	"github.com/seongyooo/agentline/internal/project"
+	"github.com/seongyooo/agentline/internal/state"
 )
 
 // The layout measures with x/ansi and the screen renderer measures with
@@ -20,7 +20,7 @@ import (
 // what made Hangul appear to the left of the prompt marker.
 //
 // This is the regression guard: the two tables must agree, character by
-// character, over everything AgentView puts on screen.
+// character, over everything AgentLine puts on screen.
 func TestWidthTablesAgreeOnEveryGlyphDrawn(t *testing.T) {
 	for _, r := range glyphsDrawn(t) {
 		s := string(r)

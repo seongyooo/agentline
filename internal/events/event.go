@@ -25,7 +25,7 @@ const (
 	// prompt text in Message and is what MISSION is derived from.
 	UserPrompt Type = "user_prompt"
 
-	// AgentReply is what the agent said back, in Message. AgentView shows
+	// AgentReply is what the agent said back, in Message. AgentLine shows
 	// only enough of it to know the turn landed; it is not a transcript.
 	AgentReply Type = "agent_reply"
 
@@ -34,7 +34,7 @@ const (
 	// claimed rather than done, and is cleared either way.
 	FilePending Type = "file_pending"
 
-	// SessionInfo reports what the agent told AgentView about the session
+	// SessionInfo reports what the agent told AgentLine about the session
 	// itself: the model, and how much of a rate limit is used.
 	SessionInfo Type = "session_info"
 
@@ -72,7 +72,7 @@ type Event struct {
 
 	// Failed marks a command that did not succeed. It is separate from
 	// ExitCode because some agents report only that a command failed, without
-	// a numeric status; AgentView records what it observed and does not
+	// a numeric status; AgentLine records what it observed and does not
 	// invent a code it was never given.
 	Failed bool `json:"failed,omitempty"`
 

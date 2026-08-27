@@ -231,10 +231,10 @@ $RECYCLE.BIN/
 
 # End of https://www.toptal.com/developers/gitignore/api/go,windows,macos,linux,visualstudiocode,jetbrains
 
-### AgentView ###
+### AgentLine ###
 # The extensionless binaries `go build` produces on Linux and macOS; the Go
 # template above only covers the Windows *.exe form.
-/agentview
+/agentline
 /fakeagent
 
 # The one file the stand-in agent writes, so trying the interface in this

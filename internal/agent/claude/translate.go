@@ -5,7 +5,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/seonl/agentview/internal/events"
+	"github.com/seongyooo/agentline/internal/events"
 )
 
 // SourceName identifies this adapter in the events it produces.
@@ -23,7 +23,7 @@ func newTranslator(root string) *translator {
 }
 
 // translate maps one hook payload to zero or more normalized events. Hook
-// events AgentView has no meaning for produce nothing, rather than a guess.
+// events AgentLine has no meaning for produce nothing, rather than a guess.
 func (t *translator) translate(p payload) []events.Event {
 	switch p.HookEventName {
 	case hookUserPromptSubmit:
@@ -98,7 +98,7 @@ func (t *translator) toolFinished(p payload, failed bool) []events.Event {
 
 	kind, ok := fileEventType(p.ToolName)
 	if !ok {
-		return nil // a tool AgentView has no file meaning for
+		return nil // a tool AgentLine has no file meaning for
 	}
 	rel := t.relative(p.ToolInput.path())
 	if rel == "" {

@@ -5,7 +5,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/seonl/agentview/internal/events"
+	"github.com/seongyooo/agentline/internal/events"
 )
 
 func drain(t *testing.T, ch <-chan events.Event, limit int) []events.Event {

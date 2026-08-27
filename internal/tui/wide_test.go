@@ -8,9 +8,9 @@ import (
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/x/ansi"
 
-	"github.com/seonl/agentview/internal/events"
-	"github.com/seonl/agentview/internal/project"
-	"github.com/seonl/agentview/internal/state"
+	"github.com/seongyooo/agentline/internal/events"
+	"github.com/seongyooo/agentline/internal/project"
+	"github.com/seongyooo/agentline/internal/state"
 )
 
 // Korean, Japanese and Chinese characters occupy two terminal cells each, so
@@ -52,7 +52,7 @@ func TestPromptBarIsMeasuredInCells(t *testing.T) {
 func TestMixedWidthPromptStaysInsideTheBox(t *testing.T) {
 	m, _ := sendable(t)
 	m = focusPromptKey(m)
-	m = typeText(m, "README.md 파일에 AgentView 설명을 추가하고 테스트도 같이 작성해줘")
+	m = typeText(m, "README.md 파일에 AgentLine 설명을 추가하고 테스트도 같이 작성해줘")
 
 	for i, line := range strings.Split(m.View(), "\n") {
 		if got := ansi.StringWidth(line); got != 100 {
@@ -97,7 +97,7 @@ func TestKoreanTextInPanelsKeepsTheLayout(t *testing.T) {
 }
 
 // The session line reports what the agent said about its own run, and nothing
-// AgentView measured or guessed.
+// AgentLine measured or guessed.
 func TestSessionLineShowsReportedFacts(t *testing.T) {
 	st := state.New("/proj")
 	st.Project.Tree = project.MockTree()
@@ -223,7 +223,7 @@ func TestBothUsageWindowsAreShown(t *testing.T) {
 	}
 }
 
-// A session AgentView owns is never compacted, so a context this full keeps
+// A session AgentLine owns is never compacted, so a context this full keeps
 // costing what it costs on every further turn, and the way out is offered.
 func TestFullContextOffersARestart(t *testing.T) {
 	st := state.New("/proj")
@@ -262,7 +262,7 @@ func TestRoomyContextSaysNothingAboutRestarting(t *testing.T) {
 	}
 }
 
-// Nothing reported means nothing shown: AgentView does not estimate usage.
+// Nothing reported means nothing shown: AgentLine does not estimate usage.
 func TestNoSessionLineWithoutAReport(t *testing.T) {
 	if out := ansi.Strip(render(t, 100, 30)); strings.Contains(out, "SESSION") {
 		t.Errorf("session line shown with nothing reported:\n%s", out)

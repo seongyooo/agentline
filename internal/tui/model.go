@@ -10,10 +10,10 @@ import (
 	"github.com/charmbracelet/bubbles/textinput"
 	tea "github.com/charmbracelet/bubbletea"
 
-	"github.com/seonl/agentview/internal/events"
-	"github.com/seonl/agentview/internal/git"
-	"github.com/seonl/agentview/internal/project"
-	"github.com/seonl/agentview/internal/state"
+	"github.com/seongyooo/agentline/internal/events"
+	"github.com/seongyooo/agentline/internal/git"
+	"github.com/seongyooo/agentline/internal/project"
+	"github.com/seongyooo/agentline/internal/state"
 )
 
 // minWidth/minHeight are the smallest usable terminal; below this the UI
@@ -61,7 +61,7 @@ type Model struct {
 	// looking like an idle agent.
 	hint string
 
-	// sender is set only when AgentView owns the session; observing one
+	// sender is set only when AgentLine owns the session; observing one
 	// leaves the prompt field inert.
 	sender Sender
 

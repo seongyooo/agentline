@@ -1,4 +1,4 @@
-module github.com/seonl/agentview
+module github.com/seongyooo/agentline
 
 go 1.26.7
 

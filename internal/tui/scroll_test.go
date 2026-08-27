@@ -9,9 +9,9 @@ import (
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/x/ansi"
 
-	"github.com/seonl/agentview/internal/events"
-	"github.com/seonl/agentview/internal/project"
-	"github.com/seonl/agentview/internal/state"
+	"github.com/seongyooo/agentline/internal/events"
+	"github.com/seongyooo/agentline/internal/project"
+	"github.com/seongyooo/agentline/internal/state"
 )
 
 // withReply returns a model showing a long agent answer.
@@ -29,7 +29,7 @@ func withReply(t *testing.T, reply string) Model {
 	return m.(Model)
 }
 
-const longReply = "Added a README covering what AgentView is, how to run it in either mode, " +
+const longReply = "Added a README covering what AgentLine is, how to run it in either mode, " +
 	"and the keys it responds to. I left installation out because the build steps are not " +
 	"settled yet, and a section that goes stale immediately is worse than no section at all. " +
 	"The architecture overview points at the plan rather than repeating it, so the two cannot " +

@@ -12,14 +12,14 @@ import (
 	"sync"
 	"time"
 
-	"github.com/seonl/agentview/internal/agent"
-	"github.com/seonl/agentview/internal/events"
+	"github.com/seongyooo/agentline/internal/agent"
+	"github.com/seongyooo/agentline/internal/events"
 )
 
 // timeAfter is a variable so shutdown can be tested without waiting.
 var timeAfter = time.After
 
-// Binary is the Claude Code executable AgentView launches.
+// Binary is the Claude Code executable AgentLine launches.
 const Binary = "claude"
 
 // maxLine bounds one line of streaming output. Tool results can carry whole
@@ -34,10 +34,10 @@ var _ agent.Source = (*Stream)(nil)
 // Stream owns a Claude Code session and both observes and drives it.
 //
 // It launches the agent in streaming-JSON mode, which keeps one process alive
-// across many turns, so prompts typed in AgentView continue the same
-// conversation. Everything AgentView needs arrives in-band on stdout: no hook
+// across many turns, so prompts typed in AgentLine continue the same
+// conversation. Everything AgentLine needs arrives in-band on stdout: no hook
 // configuration to install, no port to listen on, and nothing left behind in
-// the project when AgentView exits.
+// the project when AgentLine exits.
 type Stream struct {
 	// Root is the project the session runs in.
 	Root string
@@ -174,7 +174,7 @@ func (s *Stream) write(line []byte) error {
 
 // Restart replaces the session with a fresh one.
 //
-// A session AgentView owns is never compacted, so its context only grows and
+// A session AgentLine owns is never compacted, so its context only grows and
 // every further turn re-sends all of it. Starting over is what gets the cost
 // per turn back down. The event stream is kept, so the UI does not have to be
 // rebuilt around a new channel.

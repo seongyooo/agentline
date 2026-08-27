@@ -7,16 +7,16 @@ import (
 	"strings"
 	"time"
 
-	"github.com/seonl/agentview/internal/git"
-	"github.com/seonl/agentview/internal/project"
-	"github.com/seonl/agentview/internal/state"
+	"github.com/seongyooo/agentline/internal/git"
+	"github.com/seongyooo/agentline/internal/project"
+	"github.com/seongyooo/agentline/internal/state"
 )
 
 // inspectPanel describes the selected file or directory in place of the
 // mission column.
 //
 // Everything here was observed: what is on disk, what Git says, and what the
-// agent did with it. AgentView does not describe what a file is *for* — that
+// agent did with it. AgentLine does not describe what a file is *for* — that
 // would mean reading it and summarizing, which is a judgement it has no way
 // to make honestly and is not what this tool is.
 func (m Model) inspectPanel(l Layout, node *project.Node, now time.Time) []string {

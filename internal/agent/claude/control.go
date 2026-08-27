@@ -80,7 +80,7 @@ func requestID() string {
 	var b [16]byte
 	if _, err := rand.Read(b[:]); err != nil {
 		// Only used to correlate a reply that is logged, not acted on.
-		return "agentview"
+		return "agentline"
 	}
-	return "agentview-" + hex.EncodeToString(b[:])
+	return "agentline-" + hex.EncodeToString(b[:])
 }

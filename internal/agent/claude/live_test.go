@@ -7,8 +7,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/seonl/agentview/internal/events"
-	"github.com/seonl/agentview/internal/state"
+	"github.com/seongyooo/agentline/internal/events"
+	"github.com/seongyooo/agentline/internal/state"
 )
 
 // TestLiveClaudeSession runs the adapter against a real Claude Code session
@@ -17,8 +17,8 @@ import (
 //
 //	LIVE_CLAUDE=<project-dir> go test ./internal/agent/claude -run TestLive -v
 //
-// The project directory must already have AgentView's hooks installed
-// (agentview -print-hooks) pointing at LIVE_ADDR.
+// The project directory must already have AgentLine's hooks installed
+// (agentline -print-hooks) pointing at LIVE_ADDR.
 func TestLiveClaudeSession(t *testing.T) {
 	root := os.Getenv("LIVE_CLAUDE")
 	if root == "" {

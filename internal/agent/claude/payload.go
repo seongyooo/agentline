@@ -1,4 +1,4 @@
-// Package claude adapts Claude Code's hook events into AgentView's normalized
+// Package claude adapts Claude Code's hook events into AgentLine's normalized
 // event model.
 //
 // Everything Claude-specific — hook names, tool names, payload shapes — is
@@ -9,7 +9,7 @@
 // four gaps this adapter works around.
 package claude
 
-// Hook event names AgentView reacts to. Claude Code emits many more; the rest
+// Hook event names AgentLine reacts to. Claude Code emits many more; the rest
 // are ignored rather than guessed at.
 const (
 	hookPreToolUse         = "PreToolUse"
@@ -36,9 +36,9 @@ const (
 	toolNotebookEdit = "NotebookEdit"
 )
 
-// payload is the subset of a hook payload AgentView reads. Fields Claude Code
-// sends that AgentView has no use for — transcript_path, effort, the assistant's
-// message text — are deliberately not decoded: AgentView is not a conversation
+// payload is the subset of a hook payload AgentLine reads. Fields Claude Code
+// sends that AgentLine has no use for — transcript_path, effort, the assistant's
+// message text — are deliberately not decoded: AgentLine is not a conversation
 // viewer.
 type payload struct {
 	HookEventName string `json:"hook_event_name"`

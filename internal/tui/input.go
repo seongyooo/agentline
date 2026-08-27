@@ -6,11 +6,11 @@ import (
 	"github.com/charmbracelet/bubbles/textinput"
 	tea "github.com/charmbracelet/bubbletea"
 
-	"github.com/seonl/agentview/internal/agent/claude"
+	"github.com/seongyooo/agentline/internal/agent/claude"
 )
 
 // Sender submits a prompt to the agent. It is satisfied by a source that owns
-// the session; when AgentView is only observing one, there is nothing to send
+// the session; when AgentLine is only observing one, there is nothing to send
 // to and the input box stays inert.
 type Sender interface {
 	Send(prompt string) error
@@ -18,7 +18,7 @@ type Sender interface {
 
 // Controller changes a running session's settings.
 //
-// These are things a flag can only decide at launch, so a session AgentView
+// These are things a flag can only decide at launch, so a session AgentLine
 // owns can offer them and one it is merely watching cannot.
 type Controller interface {
 	SetPermissionMode(mode string) error
@@ -102,7 +102,7 @@ func nextPermissionMode(current string) string {
 
 // Restarter starts a fresh session, discarding accumulated context.
 //
-// A session AgentView owns is never compacted, so its context only grows and
+// A session AgentLine owns is never compacted, so its context only grows and
 // every further turn re-sends all of it. Starting over is the only way to get
 // that cost back down.
 type Restarter interface {
@@ -148,7 +148,7 @@ func (m *Model) submitPrompt() tea.Cmd {
 		return nil
 	}
 
-	// Commands AgentView answers itself are only intercepted when it can
+	// Commands AgentLine answers itself are only intercepted when it can
 	// actually carry them out. Otherwise the text goes to the agent as
 	// typed, rather than being swallowed by a feature that is not there.
 	if _, ok := m.sender.(Controller); ok {

@@ -5,11 +5,11 @@ import (
 	"strings"
 	"time"
 
-	"github.com/seonl/agentview/internal/events"
+	"github.com/seongyooo/agentline/internal/events"
 )
 
 // streamEvent is one line of Claude Code's streaming JSON output. Only the
-// fields AgentView acts on are decoded; token counts, thinking blocks, and
+// fields AgentLine acts on are decoded; token counts, thinking blocks, and
 // rate-limit notices are read past.
 type streamEvent struct {
 	Type    string        `json:"type"`
@@ -104,7 +104,7 @@ func newStreamTranslator(root string) *streamTranslator {
 func (t *streamTranslator) translateLine(line []byte) []events.Event {
 	var e streamEvent
 	if err := json.Unmarshal(line, &e); err != nil {
-		return nil // a line AgentView cannot read is not one it should guess at
+		return nil // a line AgentLine cannot read is not one it should guess at
 	}
 
 	switch e.Type {
@@ -317,7 +317,7 @@ func (t *streamTranslator) finished(call streamBlock, failed bool) []events.Even
 	return []events.Event{t.event(kind, func(ev *events.Event) { ev.Path = rel })}
 }
 
-// prompt is the event for an instruction the user submitted through AgentView.
+// prompt is the event for an instruction the user submitted through AgentLine.
 func (t *streamTranslator) prompt(text string) events.Event {
 	return events.Event{
 		Type:      events.UserPrompt,

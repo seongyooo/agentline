@@ -5,7 +5,7 @@ import (
 	"fmt"
 )
 
-// hookEvents are the hooks AgentView asks Claude Code to deliver. Only what
+// hookEvents are the hooks AgentLine asks Claude Code to deliver. Only what
 // the adapter can act on is requested; subscribing to more would add latency
 // to the agent's tool calls for payloads that would be thrown away.
 var hookEvents = []string{
@@ -18,10 +18,10 @@ var hookEvents = []string{
 }
 
 // HookSettings renders the settings.json fragment that points Claude Code's
-// hooks at a running AgentView.
+// hooks at a running AgentLine.
 //
 // The user installs this in the project they want observed. It is generated
-// rather than documented so the address can never drift from what AgentView
+// rather than documented so the address can never drift from what AgentLine
 // is actually listening on.
 func HookSettings(addr string) ([]byte, error) {
 	if addr == "" {
@@ -38,7 +38,7 @@ func HookSettings(addr string) ([]byte, error) {
 						"type": "http",
 						"url":  url,
 						// Short: a hook runs inline with the agent's work, so
-						// a stalled AgentView must not hold the agent up.
+						// a stalled AgentLine must not hold the agent up.
 						"timeout": 5,
 					},
 				},

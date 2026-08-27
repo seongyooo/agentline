@@ -6,7 +6,7 @@ import (
 
 	"context"
 
-	"github.com/seonl/agentview/internal/events"
+	"github.com/seongyooo/agentline/internal/events"
 )
 
 // MockName is the source name mock events carry. It is deliberately not

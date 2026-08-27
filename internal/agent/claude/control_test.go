@@ -5,7 +5,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/seonl/agentview/internal/events"
+	"github.com/seongyooo/agentline/internal/events"
 )
 
 // The control wire format is not in the published documentation — it was read
@@ -124,7 +124,7 @@ func TestControlFailureBecomesAnError(t *testing.T) {
 	tr := newStreamTranslator("/proj")
 
 	line := `{"type":"control_response","response":{"subtype":"error",
-	  "request_id":"agentview-1","error":"set_model: model must be a string"}}`
+	  "request_id":"agentline-1","error":"set_model: model must be a string"}}`
 
 	got := tr.translateLine([]byte(line))
 	if len(got) != 1 || got[0].Type != events.AgentError {
@@ -139,7 +139,7 @@ func TestControlFailureBecomesAnError(t *testing.T) {
 func TestSuccessfulControlResponseIsQuiet(t *testing.T) {
 	tr := newStreamTranslator("/proj")
 
-	line := `{"type":"control_response","response":{"subtype":"success","request_id":"agentview-1"}}`
+	line := `{"type":"control_response","response":{"subtype":"success","request_id":"agentline-1"}}`
 	if got := tr.translateLine([]byte(line)); got != nil {
 		t.Errorf("got %+v, want nothing for a request that succeeded", got)
 	}

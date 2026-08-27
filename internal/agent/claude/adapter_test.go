@@ -10,8 +10,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/seonl/agentview/internal/agent"
-	"github.com/seonl/agentview/internal/events"
+	"github.com/seongyooo/agentline/internal/agent"
+	"github.com/seongyooo/agentline/internal/events"
 )
 
 var _ agent.Source = (*Adapter)(nil) // the adapter must fit the backend seam
@@ -72,7 +72,7 @@ func TestAdapterDeliversTranslatedEvents(t *testing.T) {
 }
 
 // A hook runs inline with the agent's tool call, so a malformed payload must
-// still get an immediate 200: it is AgentView's problem, not the agent's.
+// still get an immediate 200: it is AgentLine's problem, not the agent's.
 func TestMalformedPayloadStillAnswersOK(t *testing.T) {
 	_, stream, url := start(t)
 

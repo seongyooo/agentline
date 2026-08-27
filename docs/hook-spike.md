@@ -1,6 +1,6 @@
 # Spike: what Claude Code hooks actually deliver
 
-Phase 5 assumes AgentView can observe Claude Code through structured events
+Phase 5 assumes AgentLine can observe Claude Code through structured events
 rather than by scraping terminal text. The whole architecture rests on that
 assumption, so it was tested before the adapter was written.
 
@@ -20,7 +20,7 @@ hook posting to a local server. Captures were compared for content and order.
 
 ## Mapping to the normalized event model
 
-| AgentView event | Hook source | Field |
+| AgentLine event | Hook source | Field |
 |---|---|---|
 | `file_read` | `PostToolUse` where `tool_name` is `Read` | `tool_input.file_path` |
 | `file_edit` | `PostToolUse` where `tool_name` is `Edit` | `tool_input.file_path` |
@@ -101,7 +101,7 @@ Two constraints come with it:
   `200` with an empty body — the "no decision" response — and do its work off
   the request path.
 - **The port must be agreed in advance,** since the hook config has to name a
-  URL before AgentView starts. A fixed default port with a flag to override is
+  URL before AgentLine starts. A fixed default port with a flag to override is
   enough for the MVP; installing the hook config into a project is Phase 7
   launcher work.
 
@@ -111,5 +111,5 @@ Two constraints come with it:
   `session_start_reason` as the documentation states.
 - Every payload carries `session_id`, `cwd`, `transcript_path` and
   `permission_mode`; tool events add `effort` and `prompt_id`.
-- `Stop` includes `last_assistant_message`, which AgentView must **not**
+- `Stop` includes `last_assistant_message`, which AgentLine must **not**
   render — the plan is explicit that it is not a conversation viewer.

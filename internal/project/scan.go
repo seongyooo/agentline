@@ -10,7 +10,7 @@ import (
 )
 
 // defaultMaxEntries caps how many children one directory contributes to the
-// tree. AgentView shows where work is happening, not every file in a repo.
+// tree. AgentLine shows where work is happening, not every file in a repo.
 const defaultMaxEntries = 200
 
 // rootMarkers identify a project root when walking up from the start

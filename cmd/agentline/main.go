@@ -1,4 +1,4 @@
-// Command agentview is a situational-awareness UI for AI coding agents.
+// Command agentline is a situational-awareness UI for AI coding agents.
 package main
 
 import (
@@ -12,18 +12,18 @@ import (
 
 	tea "github.com/charmbracelet/bubbletea"
 
-	"github.com/seonl/agentview/internal/agent"
-	"github.com/seonl/agentview/internal/agent/claude"
-	"github.com/seonl/agentview/internal/events"
-	"github.com/seonl/agentview/internal/project"
-	"github.com/seonl/agentview/internal/tui"
+	"github.com/seongyooo/agentline/internal/agent"
+	"github.com/seongyooo/agentline/internal/agent/claude"
+	"github.com/seongyooo/agentline/internal/events"
+	"github.com/seongyooo/agentline/internal/project"
+	"github.com/seongyooo/agentline/internal/tui"
 
-	"github.com/seonl/agentview/internal/state"
+	"github.com/seongyooo/agentline/internal/state"
 )
 
 func main() {
 	if err := run(); err != nil {
-		fmt.Fprintln(os.Stderr, "agentview:", err)
+		fmt.Fprintln(os.Stderr, "agentline:", err)
 		os.Exit(1)
 	}
 }
@@ -73,7 +73,7 @@ func run() error {
 	hint := ""
 
 	if *run {
-		// AgentView owns the session, so the prompt box can submit to it.
+		// AgentLine owns the session, so the prompt box can submit to it.
 		session := claude.NewStream(root)
 		session.Bin = *agentBin
 
@@ -103,7 +103,7 @@ func run() error {
 		hint = fmt.Sprintf("Event source unavailable: %v", err)
 	}
 
-	log.Printf("starting agentview in %s", root)
+	log.Printf("starting agentline in %s", root)
 	// The cursor is placed after each frame so an input method composes where
 	// the text is. Without it Korean appears in the corner of the screen
 	// until the syllable is finished.
@@ -185,12 +185,12 @@ func setupLogging() (func(), error) {
 	if err != nil {
 		dir = os.TempDir()
 	}
-	dir = filepath.Join(dir, "agentview")
+	dir = filepath.Join(dir, "agentline")
 	if err := os.MkdirAll(dir, 0o755); err != nil {
 		return nil, fmt.Errorf("create log dir: %w", err)
 	}
 
-	f, err := os.OpenFile(filepath.Join(dir, "agentview.log"), os.O_CREATE|os.O_WRONLY|os.O_APPEND, 0o644)
+	f, err := os.OpenFile(filepath.Join(dir, "agentline.log"), os.O_CREATE|os.O_WRONLY|os.O_APPEND, 0o644)
 	if err != nil {
 		return nil, fmt.Errorf("open log file: %w", err)
 	}

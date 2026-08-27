@@ -26,7 +26,7 @@ type taskFields struct {
 // taskList tracks the agent's task list as its tool calls go by.
 //
 // It counts only what the agent itself reported. If the agent keeps no list,
-// the count stays unknown and AgentView shows no progress, rather than
+// the count stays unknown and AgentLine shows no progress, rather than
 // inventing a number for work whose real extent nobody can see.
 type taskList struct {
 	// done records completion by task id, so a task completed twice is not

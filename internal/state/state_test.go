@@ -5,7 +5,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/seonl/agentview/internal/events"
+	"github.com/seongyooo/agentline/internal/events"
 )
 
 func ev(t events.Type, ts time.Time) events.Event {

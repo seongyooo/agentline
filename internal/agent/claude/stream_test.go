@@ -10,7 +10,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/seonl/agentview/internal/events"
+	"github.com/seongyooo/agentline/internal/events"
 )
 
 // fakeAgent builds a stand-in for Claude Code that speaks the streaming
@@ -92,7 +92,7 @@ func find(got []events.Event, kind events.Type) (events.Event, bool) {
 }
 
 // A prompt must reach the agent and come back as activity, which is the whole
-// point of AgentView owning the session.
+// point of AgentLine owning the session.
 func TestStreamSendProducesActivity(t *testing.T) {
 	root := t.TempDir()
 	s, stream := startStream(t, root)
@@ -191,7 +191,7 @@ func TestStreamAcceptsSeveralPrompts(t *testing.T) {
 	}
 }
 
-// Output AgentView cannot read must be skipped, not guessed at.
+// Output AgentLine cannot read must be skipped, not guessed at.
 func TestStreamIgnoresUnreadableOutput(t *testing.T) {
 	tr := newStreamTranslator("/proj")
 
@@ -212,7 +212,7 @@ func TestStreamIgnoresOrphanToolResults(t *testing.T) {
 	}
 }
 
-// A session AgentView owns is never compacted, so restarting is the only way
+// A session AgentLine owns is never compacted, so restarting is the only way
 // to get the context - and the cost of every further turn - back down.
 func TestRestartGivesAFreshSession(t *testing.T) {
 	root := t.TempDir()

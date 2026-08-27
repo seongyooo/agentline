@@ -1,4 +1,4 @@
-// Package state holds AgentView's application state and the reducer that
+// Package state holds AgentLine's application state and the reducer that
 // advances it from normalized events. It contains no rendering logic.
 package state
 
@@ -6,9 +6,9 @@ import (
 	"strings"
 	"time"
 
-	"github.com/seonl/agentview/internal/events"
-	"github.com/seonl/agentview/internal/git"
-	"github.com/seonl/agentview/internal/project"
+	"github.com/seongyooo/agentline/internal/events"
+	"github.com/seongyooo/agentline/internal/git"
+	"github.com/seongyooo/agentline/internal/project"
 )
 
 // maxActivity bounds in-memory history; the UI shows far fewer.
@@ -39,7 +39,7 @@ const (
 //
 // This is a tally of the agent's own list, not an estimate of how complete
 // the work is. How far along a piece of work "really" is cannot be observed,
-// and AgentView does not guess at it.
+// and AgentLine does not guess at it.
 type Progress struct {
 	Done  int
 	Total int
@@ -64,7 +64,7 @@ type Action struct {
 
 	// Summary is the agent's own description of what it is doing, when it
 	// gave one. It is shown in place of a raw command, which says what was
-	// typed but not what it is for. Never written by AgentView.
+	// typed but not what it is for. Never written by AgentLine.
 	Summary string
 }
 
@@ -95,16 +95,16 @@ type AgentState struct {
 	Activity []Action
 
 	// Reply is the last thing the agent said, kept so the user can tell a
-	// turn landed. AgentView shows a line of it, never the conversation.
+	// turn landed. AgentLine shows a line of it, never the conversation.
 	Reply string
 
 	// Progress counts the agent's own task list. Its zero value means the
-	// agent is not keeping one, and AgentView then shows no progress at all
+	// agent is not keeping one, and AgentLine then shows no progress at all
 	// rather than estimating any.
 	Progress Progress
 
 	// Session is what the agent reported about its own run. Nil until it
-	// says something; AgentView reports nothing about usage it has not been
+	// says something; AgentLine reports nothing about usage it has not been
 	// told.
 	Session *events.Session
 
@@ -177,7 +177,7 @@ func (s *State) SetModel(model string) {
 }
 
 // SlashCommands are the commands the agent said it accepts, and is empty
-// until it says so. AgentView offers no command it has not been told about.
+// until it says so. AgentLine offers no command it has not been told about.
 func (s *State) SlashCommands() []string {
 	if s.Agent.Session == nil {
 		return nil

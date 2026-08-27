@@ -7,8 +7,8 @@ import (
 	"github.com/charmbracelet/x/ansi"
 )
 
-// A session AgentView owns has no interactive picker of its own, so /model
-// typed into the prompt does nothing on its own. AgentView answers it here
+// A session AgentLine owns has no interactive picker of its own, so /model
+// typed into the prompt does nothing on its own. AgentLine answers it here
 // instead, applying the choice over the control protocol.
 
 // modelAliases are the names the CLI documents for --model.

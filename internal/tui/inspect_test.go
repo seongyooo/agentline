@@ -10,8 +10,8 @@ import (
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/x/ansi"
 
-	"github.com/seonl/agentview/internal/events"
-	"github.com/seonl/agentview/internal/git"
+	"github.com/seongyooo/agentline/internal/events"
+	"github.com/seongyooo/agentline/internal/git"
 )
 
 // enter opens the entry under the cursor.
@@ -70,7 +70,7 @@ func TestInspectShowsObservedFacts(t *testing.T) {
 	}
 }
 
-// What the agent did with a file is the part AgentView actually knows and the
+// What the agent did with a file is the part AgentLine actually knows and the
 // reason to look at an entry here rather than in an editor.
 func TestInspectShowsAgentActivity(t *testing.T) {
 	m, _, _ := scanned(t, "notes.md")

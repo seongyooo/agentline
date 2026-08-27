@@ -11,16 +11,16 @@ import (
 	"github.com/charmbracelet/lipgloss"
 	"github.com/charmbracelet/x/ansi"
 
-	"github.com/seonl/agentview/internal/events"
-	"github.com/seonl/agentview/internal/project"
-	"github.com/seonl/agentview/internal/state"
+	"github.com/seongyooo/agentline/internal/events"
+	"github.com/seongyooo/agentline/internal/project"
+	"github.com/seongyooo/agentline/internal/state"
 )
 
 // treeChrome is the rows the project panel spends on its label and spacer.
 const treeChrome = 2
 
 // heavyContext is where a session's accumulated context is worth pointing out.
-// A session AgentView owns is never compacted, so past this the same history
+// A session AgentLine owns is never compacted, so past this the same history
 // is re-sent on every turn and the cost per turn stops falling.
 const heavyContext = 120_000
 
@@ -28,7 +28,7 @@ const heavyContext = 120_000
 func (m Model) header(width int) string {
 	symbol, text, style := statusLabel(m.st.Agent.Status)
 
-	left := styleTitle.Render("AGENTVIEW")
+	left := styleTitle.Render("AGENTLINE")
 	// How tool calls are being approved changes what the agent will do
 	// without asking, so it belongs beside the status rather than buried.
 	if mode := m.st.PermissionMode(); mode != "" {
@@ -131,7 +131,7 @@ func (m Model) replyPanel(l Layout, lines []string) []string {
 }
 
 // replyRows is how many lines of the reply are shown at once. It is a small
-// window on purpose: AgentView reports that a turn landed and what it said,
+// window on purpose: AgentLine reports that a turn landed and what it said,
 // and a transcript is what the plan says it must not become (§18).
 func (m Model) replyRows(l Layout) int {
 	return clamp(l.BodyHeight/3, 2, 6)
@@ -399,7 +399,7 @@ func activityDetail(a state.Action) string {
 //
 // It is a status line, not a dashboard. There are no token counts or costs
 // here, and everything shown was reported by the agent rather than measured
-// or estimated by AgentView.
+// or estimated by AgentLine.
 // It reads the way Claude Code's own status line does, so the two say the
 // same things in the same shape and neither has to be translated into the
 // other while looking between them:
@@ -433,7 +433,7 @@ func (m Model) sessionLines(width int) []string {
 		lines = append(lines, limitStyle(s).Render(fitLine(strings.Join(limits, " | "), width)))
 	}
 
-	// A session AgentView owns is never compacted, so a context this full
+	// A session AgentLine owns is never compacted, so a context this full
 	// keeps costing what it costs on every further turn.
 	if s.ContextPercent >= heavyContextShare {
 		lines = append(lines, styleWarn.Render(fitLine("ctrl+n starts a fresh session", width)))
@@ -445,7 +445,7 @@ func (m Model) sessionLines(width int) []string {
 const heavyContextShare = 0.8
 
 // contextLabel says how full the context is, and nothing at all until the
-// agent has said — the window it measures against is not AgentView's to guess.
+// agent has said — the window it measures against is not AgentLine's to guess.
 func contextLabel(s *events.Session) string {
 	if s.ContextWindow <= 0 {
 		return ""
@@ -646,7 +646,7 @@ func (m Model) inputBar(width int) string {
 	return prompt + strings.Repeat(" ", gap) + hint
 }
 
-// promptField renders the prompt itself: editable when AgentView owns the
+// promptField renders the prompt itself: editable when AgentLine owns the
 // session, dimmed and inert when it is only watching one.
 func (m Model) promptField(width int) string {
 	if !m.canSend() {
@@ -787,7 +787,7 @@ func rule(width int) string {
 	return styleRule.Render(strings.Repeat("─", max(width, 0)))
 }
 
-// valueOrDash renders a value, or an em dash when it is unknown. AgentView
+// valueOrDash renders a value, or an em dash when it is unknown. AgentLine
 // never invents a value it has not observed.
 func valueOrDash(v string) string {
 	if v == "" {

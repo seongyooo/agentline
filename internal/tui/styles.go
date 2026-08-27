@@ -3,9 +3,9 @@ package tui
 import (
 	"github.com/charmbracelet/lipgloss"
 
-	"github.com/seonl/agentview/internal/events"
-	"github.com/seonl/agentview/internal/git"
-	"github.com/seonl/agentview/internal/state"
+	"github.com/seongyooo/agentline/internal/events"
+	"github.com/seongyooo/agentline/internal/git"
+	"github.com/seongyooo/agentline/internal/state"
 )
 
 // Color carries state, never decoration, and never meaning on its own: every

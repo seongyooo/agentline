@@ -1,6 +1,6 @@
 package tui
 
-import "github.com/seonl/agentview/internal/project"
+import "github.com/seongyooo/agentline/internal/project"
 
 // treeView is the cursor and scroll position of the project panel. The tree
 // itself lives in application state; only the viewing position is UI state.

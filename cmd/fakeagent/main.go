@@ -1,9 +1,9 @@
-// Command fakeagent stands in for Claude Code so AgentView can be exercised
+// Command fakeagent stands in for Claude Code so AgentLine can be exercised
 // without spending anything.
 //
 // It speaks the same streaming-JSON protocol on the same pipes, so running
 //
-//	agentview -run -agent fakeagent
+//	agentline -run -agent fakeagent
 //
 // drives the real adapter, the real process handling, and the real control
 // requests. Only the thinking is missing.
@@ -44,7 +44,7 @@ type agent struct {
 	edits  int
 }
 
-// run reads messages until the pipe closes, which is how AgentView ends a
+// run reads messages until the pipe closes, which is how AgentLine ends a
 // session.
 func (a *agent) run() {
 	scanner := bufio.NewScanner(os.Stdin)
@@ -101,7 +101,7 @@ func (a *agent) control(id, subtype, mode, model string) {
 
 	case "set_model":
 		// An empty model means "back to the session default", and anything
-		// that is not a known family is refused, so AgentView's error path
+		// that is not a known family is refused, so AgentLine's error path
 		// can be exercised too.
 		switch {
 		case model == "":
@@ -307,7 +307,7 @@ func (a *agent) reply(prompt string, steps int) {
 	})
 }
 
-// announce sends the init event, which is how AgentView learns the model, the
+// announce sends the init event, which is how AgentLine learns the model, the
 // permission mode, and the commands on offer.
 func (a *agent) announce() {
 	cwd, _ := os.Getwd()

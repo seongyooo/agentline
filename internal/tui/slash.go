@@ -2,7 +2,7 @@ package tui
 
 import "strings"
 
-// Slash commands are the agent's, not AgentView's. The text is sent through
+// Slash commands are the agent's, not AgentLine's. The text is sent through
 // untouched; all that happens here is completion from the list the session
 // announced when it started, so nothing is ever offered that the agent did
 // not say it accepts.
