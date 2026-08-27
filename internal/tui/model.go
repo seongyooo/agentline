@@ -223,8 +223,25 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return m.navigating(msg)
 	}
 
+	m.keepFocusVisible(computeLayout(m.width, m.height))
 	m.syncScroll()
 	return m, nil
+}
+
+// keepFocusVisible moves focus off a panel that is no longer on the screen.
+//
+// A panel can go out from under the focus without a key being pressed: the
+// terminal is resized, or an answer is superseded by the next turn. Focus left
+// behind means the arrow keys act on something nobody can see, which from the
+// outside is indistinguishable from the keys not working at all.
+func (m *Model) keepFocusVisible(l Layout) {
+	switch m.focus {
+	case focusInspect, focusPrompt:
+		return // neither is a panel in the tab order
+	}
+	if !m.focusable(m.focus, l) {
+		m.focus = focusTree
+	}
 }
 
 // typing routes a key to the prompt field.
@@ -267,12 +284,13 @@ func (m Model) typing(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		if m.completeSlash() {
 			return m, nil
 		}
-		m.setFocus(focusTree)
-		return m, nil
+		// The command is returned, not dropped: it is what hides the terminal
+		// cursor, and a cursor left blinking in a field that no longer has
+		// focus is the clearest way to look broken.
+		return m, m.setFocus(focusTree)
 
 	case "esc":
-		m.setFocus(focusTree)
-		return m, nil
+		return m, m.setFocus(focusTree)
 	}
 
 	m.sendErr = nil // the user is composing again

@@ -41,7 +41,7 @@ func (m Model) focusable(area focusArea, l Layout) bool {
 	case focusTree:
 		return l.ShowTree
 	case focusReply:
-		return m.replyLines() != nil
+		return m.replyShown(l)
 	case focusActivity:
 		return l.ActivityRows > 0
 	case focusPrompt:

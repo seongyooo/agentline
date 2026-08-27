@@ -57,30 +57,39 @@ type section struct {
 	lines []string
 }
 
-// missionPanel renders MISSION, NOW, and optionally NEXT, dropping whole
-// sections by rank rather than letting a tight panel clip NOW's target.
+// missionPanel renders the column, dropping whole sections by rank rather than
+// letting a tight panel clip NOW's target.
 func (m Model) missionPanel(l Layout) []string {
-	now := m.nowLines()
+	sections := m.missionSections(l)
+	return m.fitColumn(l, sections)
+}
 
+// missionSections builds the column's contents, in display order.
+//
+// It is one function because two were one too many: whether a panel can take
+// focus was decided from whether its content existed, while whether it was
+// drawn was decided by what survived the fit. When those disagreed, tab landed
+// on a panel that was not on the screen and the focus appeared to vanish.
+func (m Model) missionSections(l Layout) []section {
 	sections := []section{
-		{rank: 4, lines: m.missionLines(l.MissionInner())},
+		{rank: rankMission, lines: m.missionLines(l.MissionInner())},
 	}
 	// While a question stands, NEEDS YOU is what the agent is doing. Showing
 	// NOW as well printed the same sentence twice, one line apart.
 	if m.st.Agent.Ask == nil {
-		sections = append(sections, section{rank: 2, lines: now})
+		sections = append(sections, section{rank: rankNow, lines: m.nowLines()})
 	}
 	// A blocked agent goes above everything and is never dropped to make
 	// room: a panel that hid the question would leave the session stopped
 	// with nothing on screen saying why.
 	if lines := m.askLines(l.MissionInner()); lines != nil {
-		sections = append([]section{{rank: 0, lines: lines}}, sections...)
+		sections = append([]section{{rank: rankAsk, lines: lines}}, sections...)
 	}
 	// Below a question the agent is blocked on, above everything else. It is
 	// not urgent the way a question is — nothing is waiting on it — but it is
 	// the only thing on screen that says the work is going nowhere.
 	if lines := m.spinLines(l.MissionInner()); lines != nil {
-		sections = append([]section{{rank: 1, lines: lines}}, sections...)
+		sections = append([]section{{rank: rankSpin, lines: lines}}, sections...)
 	}
 	// The answer, in a box that scrolls. It outranks MISSION deliberately.
 	// MISSION restates a prompt the user typed themselves; the reply is the
@@ -88,23 +97,52 @@ func (m Model) missionPanel(l Layout) []string {
 	// thirty rows there is only room for one of them. Ranked below MISSION,
 	// as it was, the answer to a question simply never appeared.
 	if lines := m.replyLines(); lines != nil {
-		sections = append(sections, section{rank: 3, lines: m.replyPanel(l, lines)})
+		sections = append(sections, section{rank: rankReply, lines: m.replyPanel(l, lines)})
 	}
 	if l.ShowNext {
-		sections = append(sections, section{rank: 7, lines: []string{styleLabel.Render("NEXT"), valueOrDash(m.st.Agent.Next)}})
+		sections = append(sections, section{rank: rankNext, lines: []string{styleLabel.Render("NEXT"), valueOrDash(m.st.Agent.Next)}})
 	}
+	return sections
+}
 
+// Section ranks, in the order they survive a tight column. Lower stays longer.
+const (
+	rankAsk     = 0
+	rankSpin    = 1
+	rankNow     = 2
+	rankReply   = 3
+	rankMission = 4
+	rankNext    = 7
+)
+
+// replyShown reports whether the reply survived the fit, which is what decides
+// whether it can take focus. Asking whether a reply exists is not the same
+// question, and answering that one instead is what let focus go somewhere
+// there was nothing to see.
+func (m Model) replyShown(l Layout) bool {
+	if m.replyLines() == nil || m.inspecting != nil {
+		return false
+	}
+	sections := m.missionSections(l)
+	keep := keepSections(sections, m.columnBudget(l, sections))
+
+	for i, s := range sections {
+		if s.rank == rankReply {
+			return keep[i]
+		}
+	}
+	return false
+}
+
+// fitColumn drops what does not fit and pins the session status to the foot.
+func (m Model) fitColumn(l Layout, sections []section) []string {
 	// Session facts are pinned to the bottom of the column rather than
 	// flowing with the content above them. They are status, like the branch
 	// on the bottom bar, and should not compete with what the agent is doing
 	// for a place in the panel.
-	// What the status block may spend is whatever the panels above it do not
-	// want. Deciding the other way round — pick a status rendering, then fit
-	// the content into what is left — is how a taller status block silently
-	// ate the reply.
 	body := l.BodyHeight - l.FrameRows()
 	status := m.sessionLines(l, body-wantedHeight(sections))
-	budget := max(body-len(status), 0)
+	budget := m.columnBudget(l, sections)
 
 	// Clamped, not just padded. When the content cannot be cut down to the
 	// budget by dropping sections, it overruns it, and appending the status
@@ -243,9 +281,37 @@ func wrap(text string, width int) []string {
 	return out
 }
 
+// columnBudget is the rows the sections may use, once the status block pinned
+// to the foot has taken what it needs.
+//
+// What the status block may spend is whatever the panels above it do not want.
+// Deciding the other way round — pick a status rendering, then fit the content
+// into what is left — is how a taller status block silently ate the reply.
+func (m Model) columnBudget(l Layout, sections []section) int {
+	body := l.BodyHeight - l.FrameRows()
+	return max(body-len(m.sessionLines(l, body-wantedHeight(sections))), 0)
+}
+
 // fitSections drops the lowest-ranked sections until the rest fit, then joins
 // the survivors with blank separators, preserving their original order.
 func fitSections(sections []section, height int) []string {
+	keep := keepSections(sections, height)
+
+	var lines []string
+	for i, s := range sections {
+		if !keep[i] {
+			continue
+		}
+		if len(lines) > 0 {
+			lines = append(lines, "")
+		}
+		lines = append(lines, s.lines...)
+	}
+	return lines
+}
+
+// keepSections marks which sections survive a column of the given height.
+func keepSections(sections []section, height int) []bool {
 	keep := make([]bool, len(sections))
 	for i := range keep {
 		keep[i] = true
@@ -263,18 +329,7 @@ func fitSections(sections []section, height int) []string {
 		}
 		keep[worst] = false
 	}
-
-	var lines []string
-	for i, s := range sections {
-		if !keep[i] {
-			continue
-		}
-		if len(lines) > 0 {
-			lines = append(lines, "")
-		}
-		lines = append(lines, s.lines...)
-	}
-	return lines
+	return keep
 }
 
 // wantedHeight is the rows every section would take if none were dropped.
