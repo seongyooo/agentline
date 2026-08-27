@@ -205,7 +205,6 @@ the commands the session announced; `/model` opens a picker.
 |---|---|---|
 | Claude Code | Owned session (stream-JSON), or hooks | Verified against real sessions |
 | Codex | `codex exec --json` | Built to the published schema; **not yet run against a real session** |
-| Gemini CLI | OTLP telemetry | Not implemented — see below |
 
 ```sh
 agentline --run --source codex
@@ -221,14 +220,13 @@ The adapter is written against Codex's published event schema and is covered end
 a stand-in that speaks it, but nobody has yet pointed it at the real binary. Treat it as
 untested until someone has.
 
-**Gemini CLI** has no JSON or streaming output; its only structured channel is
-OpenTelemetry over gRPC, which emits exactly the right events — `user_prompt`, `tool_call`,
-`file.operation`. Receiving them means an OTLP/gRPC server and the protobuf definitions
-that go with it, which is a large dependency for a project that currently has three. It is
-feasible and mapped out, but not built.
-
 Adding an agent means writing one adapter that translates its output into the normalized
 event model. Nothing downstream of an adapter knows which agent it is watching.
+
+An agent is worth adding when it reports what it does through a structured channel.
+Reconstructing activity by scraping a terminal is the approach this project was built to
+avoid: it looks fine until the output format shifts, and then it is wrong without saying
+so.
 
 ---
 
@@ -303,10 +301,11 @@ assumed.
 
 ## Roadmap
 
+- **Codex against the real binary** — the adapter is written and covered, but has only
+  been run against a stand-in.
 - **Needs You** — a distinct attention state for when the agent is genuinely blocked.
 - **Deeper Git awareness** — beyond the current branch and changed files.
 - **Intelligence layer** — inferring `NEXT` and summarising phases from observed events.
-- **Multi-agent support** — a second adapter, which is the real test of the seam.
 
 ---
 
