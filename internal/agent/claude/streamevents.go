@@ -20,6 +20,16 @@ type streamEvent struct {
 	// Model is reported when a turn starts.
 	Model string `json:"model"`
 
+	// Usage and cost are reported when a turn ends. They are what makes the
+	// session's real cost visible rather than guessed at.
+	Usage *struct {
+		InputTokens              int `json:"input_tokens"`
+		OutputTokens             int `json:"output_tokens"`
+		CacheReadInputTokens     int `json:"cache_read_input_tokens"`
+		CacheCreationInputTokens int `json:"cache_creation_input_tokens"`
+	} `json:"usage"`
+	TotalCostUSD float64 `json:"total_cost_usd"`
+
 	// RateLimit is reported as usage accumulates.
 	RateLimit *struct {
 		Status         string  `json:"status"`
@@ -88,7 +98,24 @@ func (t *streamTranslator) translateLine(line []byte) []events.Event {
 		// The turn is over, so the agent is waiting for the user again. It is
 		// not reported as DONE: whether the mission is complete is not
 		// something the transcript says.
-		return []events.Event{t.status(events.StatusWaiting)}
+		out := []events.Event{t.status(events.StatusWaiting)}
+
+		// What the turn actually cost. A long session re-sends its history
+		// every turn, so this is the number that says whether the
+		// conversation has grown expensive.
+		if e.Usage != nil || e.TotalCostUSD > 0 {
+			out = append(out, t.session(func(s *events.Session) {
+				s.Turns++
+				if u := e.Usage; u != nil {
+					s.InputTokens = u.InputTokens + u.CacheReadInputTokens + u.CacheCreationInputTokens
+					s.OutputTokens = u.OutputTokens
+				}
+				if e.TotalCostUSD > 0 {
+					s.CostUSD = e.TotalCostUSD
+				}
+			}))
+		}
+		return out
 	case "system":
 		if e.Subtype == "init" {
 			out := []events.Event{t.status(events.StatusWorking)}
@@ -103,12 +130,19 @@ func (t *streamTranslator) translateLine(line []byte) []events.Event {
 			return nil
 		}
 		return []events.Event{t.session(func(s *events.Session) {
-			s.Limit = e.RateLimit.RateLimitType
-			s.Used = e.RateLimit.Utilization
-			s.Overage = e.RateLimit.IsUsingOverage
-			if e.RateLimit.ResetsAt > 0 {
-				s.ResetsAt = time.Unix(e.RateLimit.ResetsAt, 0)
+			// Each window is reported on its own, so they are stored side by
+			// side: a weekly report must not erase the five-hour one.
+			if s.Limits == nil {
+				s.Limits = map[string]events.Limit{}
 			}
+			limit := events.Limit{
+				Used:    e.RateLimit.Utilization,
+				Overage: e.RateLimit.IsUsingOverage,
+			}
+			if e.RateLimit.ResetsAt > 0 {
+				limit.ResetsAt = time.Unix(e.RateLimit.ResetsAt, 0)
+			}
+			s.Limits[e.RateLimit.RateLimitType] = limit
 		})}
 	}
 	return nil
@@ -124,7 +158,17 @@ func (t *streamTranslator) session(set func(*events.Session)) events.Event {
 	set(&next)
 	t.lastSession = &next
 
-	return t.event(events.SessionInfo, func(ev *events.Event) { ev.Session = &next })
+	// The event carries its own copy. The reducer keeps the pointer and the
+	// UI goroutine reads it, so sharing the map with the next report would be
+	// a write to something being read elsewhere.
+	snapshot := next
+	if next.Limits != nil {
+		snapshot.Limits = make(map[string]events.Limit, len(next.Limits))
+		for name, limit := range next.Limits {
+			snapshot.Limits[name] = limit
+		}
+	}
+	return t.event(events.SessionInfo, func(ev *events.Event) { ev.Session = &snapshot })
 }
 
 // assistant handles what the agent said and the tools it is about to run.

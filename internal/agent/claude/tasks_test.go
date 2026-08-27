@@ -130,6 +130,64 @@ func TestStreamEmitsProgressFromTaskTools(t *testing.T) {
 	}
 }
 
+// A turn's real cost has to reach the UI, since a long session re-sends its
+// history every turn and that is what makes it expensive.
+func TestStreamReportsTurnUsage(t *testing.T) {
+	tr := newStreamTranslator("/proj")
+
+	line := `{"type":"result","subtype":"success","total_cost_usd":0.42,
+	  "usage":{"input_tokens":1200,"output_tokens":800,
+	           "cache_read_input_tokens":40000,"cache_creation_input_tokens":2000}}`
+
+	got := tr.translateLine([]byte(line))
+	if len(got) != 2 {
+		t.Fatalf("got %d events, want a status and a usage report: %+v", len(got), got)
+	}
+
+	session := got[1].Session
+	if session == nil {
+		t.Fatal("no session report")
+	}
+	// Cached input still counts towards the context the turn carried.
+	if want := 1200 + 40000 + 2000; session.InputTokens != want {
+		t.Errorf("InputTokens = %d, want %d", session.InputTokens, want)
+	}
+	if session.OutputTokens != 800 {
+		t.Errorf("OutputTokens = %d, want 800", session.OutputTokens)
+	}
+	if session.CostUSD != 0.42 {
+		t.Errorf("CostUSD = %v, want 0.42", session.CostUSD)
+	}
+	if session.Turns != 1 {
+		t.Errorf("Turns = %d, want 1", session.Turns)
+	}
+}
+
+// A turn that reports no usage must not fabricate one.
+func TestStreamWithoutUsageReportsNothing(t *testing.T) {
+	tr := newStreamTranslator("/proj")
+
+	got := tr.translateLine([]byte(`{"type":"result","subtype":"success"}`))
+	if len(got) != 1 {
+		t.Fatalf("got %d events, want only the status change: %+v", len(got), got)
+	}
+}
+
+// Turns accumulate, so the count reflects the whole session.
+func TestStreamCountsTurns(t *testing.T) {
+	tr := newStreamTranslator("/proj")
+	line := []byte(`{"type":"result","usage":{"input_tokens":10}}`)
+
+	var last int
+	for i := 1; i <= 3; i++ {
+		got := tr.translateLine(line)
+		last = got[len(got)-1].Session.Turns
+	}
+	if last != 3 {
+		t.Errorf("Turns = %d after three turns, want 3", last)
+	}
+}
+
 func TestStreamEmitsProgressFromWholeListTool(t *testing.T) {
 	tr := newStreamTranslator("/proj")
 

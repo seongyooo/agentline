@@ -52,6 +52,7 @@ type Stream struct {
 
 	mu     sync.Mutex
 	stdin  io.WriteCloser
+	cmd    *exec.Cmd
 	out    chan events.Event
 	closed bool
 }
@@ -68,6 +69,20 @@ func (s *Stream) Name() string { return SourceName }
 // A missing executable is reported here rather than leaving a UI that looks
 // live but never updates.
 func (s *Stream) Events(ctx context.Context) (<-chan events.Event, error) {
+	s.mu.Lock()
+	s.out = make(chan events.Event, buffer)
+	out := s.out
+	s.mu.Unlock()
+
+	if err := s.start(); err != nil {
+		return nil, err
+	}
+	go s.shutdown(ctx)
+	return out, nil
+}
+
+// start launches the agent and begins reading its output.
+func (s *Stream) start() error {
 	bin := s.Bin
 	if bin == "" {
 		bin = Binary
@@ -85,25 +100,38 @@ func (s *Stream) Events(ctx context.Context) (<-chan events.Event, error) {
 
 	stdin, err := cmd.StdinPipe()
 	if err != nil {
-		return nil, fmt.Errorf("claude stdin: %w", err)
+		return fmt.Errorf("claude stdin: %w", err)
 	}
 	stdout, err := cmd.StdoutPipe()
 	if err != nil {
-		return nil, fmt.Errorf("claude stdout: %w", err)
+		return fmt.Errorf("claude stdout: %w", err)
 	}
 	if err := cmd.Start(); err != nil {
-		return nil, fmt.Errorf("start %s: %w", bin, err)
+		return fmt.Errorf("start %s: %w", bin, err)
 	}
 
 	s.mu.Lock()
-	s.stdin = stdin
-	s.out = make(chan events.Event, buffer)
+	s.stdin, s.cmd = stdin, cmd
 	s.mu.Unlock()
 
 	go s.consume(stdout)
-	go s.shutdown(ctx, cmd, stdin)
+	return nil
+}
 
-	return s.out, nil
+// waitOrKill ends a process, killing it if it does not stop on its own.
+func waitOrKill(cmd *exec.Cmd) {
+	done := make(chan struct{})
+	go func() {
+		cmd.Wait()
+		close(done)
+	}()
+
+	select {
+	case <-done:
+	case <-timeAfter(shutdownGrace):
+		cmd.Process.Kill()
+		<-done
+	}
 }
 
 // Send submits a prompt to the running session.
@@ -137,6 +165,34 @@ func (s *Stream) Send(prompt string) error {
 	return nil
 }
 
+// Restart replaces the session with a fresh one.
+//
+// A session AgentView owns is never compacted, so its context only grows and
+// every further turn re-sends all of it. Starting over is what gets the cost
+// per turn back down. The event stream is kept, so the UI does not have to be
+// rebuilt around a new channel.
+func (s *Stream) Restart() error {
+	s.mu.Lock()
+	if s.closed {
+		s.mu.Unlock()
+		return ErrNotRunning
+	}
+	old, cmd := s.stdin, s.cmd
+	s.stdin, s.cmd = nil, nil
+	s.mu.Unlock()
+
+	// Ending the old process first, so two sessions never run at once.
+	if old != nil {
+		old.Close()
+	}
+	if cmd != nil {
+		waitOrKill(cmd)
+	}
+
+	s.translator = newStreamTranslator(s.Root)
+	return s.start()
+}
+
 // consume reads streaming output until the process ends.
 func (s *Stream) consume(stdout io.Reader) {
 	scanner := bufio.NewScanner(stdout)
@@ -154,25 +210,20 @@ func (s *Stream) consume(stdout io.Reader) {
 
 // shutdown ends the session when ctx is cancelled and closes the stream once
 // nothing can still be sent on it.
-func (s *Stream) shutdown(ctx context.Context, cmd *exec.Cmd, stdin io.WriteCloser) {
+func (s *Stream) shutdown(ctx context.Context) {
 	<-ctx.Done()
 
 	// Closing stdin asks the agent to finish; killing is the fallback.
 	s.mu.Lock()
 	s.closed = true
+	stdin, cmd := s.stdin, s.cmd
 	s.mu.Unlock()
-	stdin.Close()
 
-	done := make(chan struct{})
-	go func() {
-		cmd.Wait()
-		close(done)
-	}()
-	select {
-	case <-done:
-	case <-timeAfter(shutdownGrace):
-		cmd.Process.Kill()
-		<-done
+	if stdin != nil {
+		stdin.Close()
+	}
+	if cmd != nil {
+		waitOrKill(cmd)
 	}
 
 	s.mu.Lock()

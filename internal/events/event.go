@@ -91,17 +91,48 @@ type Event struct {
 type Session struct {
 	Model string `json:"model,omitempty"`
 
-	// Limit names a usage window the agent reported, e.g. "five_hour".
-	Limit string `json:"limit,omitempty"`
+	// Limits are the usage windows the agent reported, keyed by name. There
+	// is more than one - a five-hour window and a weekly one - and each is
+	// reported separately, so they are kept side by side rather than
+	// overwriting each other.
+	Limits map[string]Limit `json:"limits,omitempty"`
 
-	// Used is how much of that window is consumed, between 0 and 1.
-	Used float64 `json:"used,omitempty"`
+	// Turns counts completed turns in this session.
+	Turns int `json:"turns,omitempty"`
+
+	// InputTokens is what the last turn sent, cached portion included. It
+	// grows with the conversation, since a turn re-sends what came before.
+	InputTokens int `json:"input_tokens,omitempty"`
+
+	// OutputTokens is what the last turn generated.
+	OutputTokens int `json:"output_tokens,omitempty"`
+
+	// CostUSD is what the agent reported this session has cost so far, and
+	// is zero when it reported nothing.
+	CostUSD float64 `json:"cost_usd,omitempty"`
+}
+
+// Limit is how much of one usage window has been consumed.
+type Limit struct {
+	// Used is the share consumed, between 0 and 1.
+	Used float64 `json:"used"`
 
 	// ResetsAt is when the window rolls over, zero if not reported.
 	ResetsAt time.Time `json:"resets_at,omitempty"`
 
 	// Overage marks usage beyond the included allowance.
 	Overage bool `json:"overage,omitempty"`
+}
+
+// Peak returns the most-consumed window, which is the one that will run out
+// first and so the one worth warning about.
+func (s *Session) Peak() (name string, limit Limit, ok bool) {
+	for n, l := range s.Limits {
+		if !ok || l.Used > limit.Used {
+			name, limit, ok = n, l, true
+		}
+	}
+	return name, limit, ok
 }
 
 // Valid reports whether the event carries the fields its Type requires.

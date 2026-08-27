@@ -212,6 +212,87 @@ func TestStreamIgnoresOrphanToolResults(t *testing.T) {
 	}
 }
 
+// A session AgentView owns is never compacted, so restarting is the only way
+// to get the context - and the cost of every further turn - back down.
+func TestRestartGivesAFreshSession(t *testing.T) {
+	root := t.TempDir()
+	s, stream := startStream(t, root)
+
+	if err := s.Send("first"); err != nil {
+		t.Fatal(err)
+	}
+	collect(t, stream)
+
+	if err := s.Restart(); err != nil {
+		t.Fatalf("restart: %v", err)
+	}
+
+	// The same stream keeps working, on a session that carries nothing over.
+	if err := s.Send("after restart"); err != nil {
+		t.Fatalf("send after restart: %v", err)
+	}
+	got := collect(t, stream)
+	if len(got) == 0 {
+		t.Fatal("no events after restarting")
+	}
+
+	reply, ok := find(got, events.AgentReply)
+	if !ok {
+		t.Fatalf("no reply after restarting: %s", types(got))
+	}
+	if !strings.Contains(reply.Message, "after restart") {
+		t.Errorf("reply = %q; the new session did not receive the prompt", reply.Message)
+	}
+}
+
+// Restarting must not leave the previous process running.
+func TestRestartReplacesTheProcess(t *testing.T) {
+	s, stream := startStream(t, t.TempDir())
+
+	if err := s.Send("first"); err != nil {
+		t.Fatal(err)
+	}
+	collect(t, stream)
+
+	s.mu.Lock()
+	before := s.cmd
+	s.mu.Unlock()
+
+	if err := s.Restart(); err != nil {
+		t.Fatal(err)
+	}
+
+	s.mu.Lock()
+	after := s.cmd
+	s.mu.Unlock()
+
+	if before == after {
+		t.Error("restart reused the old process")
+	}
+	if before.ProcessState == nil {
+		t.Error("the old process was left running")
+	}
+}
+
+// Restarting a session that has already shut down is an error, not a crash.
+func TestRestartAfterShutdownFails(t *testing.T) {
+	ctx, cancel := context.WithCancel(context.Background())
+
+	s := NewStream(t.TempDir())
+	s.Bin = fakeAgent(t)
+	stream, err := s.Events(ctx)
+	if err != nil {
+		t.Fatal(err)
+	}
+	cancel()
+
+	for range stream { //nolint:revive // drain until closed
+	}
+	if err := s.Restart(); err != ErrNotRunning {
+		t.Errorf("err = %v, want %v", err, ErrNotRunning)
+	}
+}
+
 func TestSendWithoutASessionFails(t *testing.T) {
 	if err := NewStream(t.TempDir()).Send("hello"); err != ErrNotRunning {
 		t.Errorf("err = %v, want %v", err, ErrNotRunning)

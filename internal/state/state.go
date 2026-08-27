@@ -140,6 +140,16 @@ type State struct {
 	observed bool
 }
 
+// ResetSession forgets what was reported about the previous session.
+//
+// A restarted session carries none of the old context, so leaving its token
+// counts on screen would describe a conversation that no longer exists.
+func (s *State) ResetSession() {
+	s.Agent.Session = nil
+	s.Agent.Reply = ""
+	s.Agent.Progress = Progress{}
+}
+
 // Observed reports whether any agent event has been applied. The UI uses it to
 // tell "nothing is wired up" apart from "the agent has nothing to report".
 func (s *State) Observed() bool { return s.observed }
