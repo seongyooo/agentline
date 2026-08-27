@@ -14,6 +14,29 @@ type Sender interface {
 	Send(prompt string) error
 }
 
+// Restarter starts a fresh session, discarding accumulated context.
+//
+// A session AgentView owns is never compacted, so its context only grows and
+// every further turn re-sends all of it. Starting over is the only way to get
+// that cost back down.
+type Restarter interface {
+	Restart() error
+}
+
+// restartedMsg reports the outcome of starting a fresh session.
+type restartedMsg struct{ err error }
+
+// restartSession starts a new session if the source supports it.
+func (m *Model) restartSession() tea.Cmd {
+	restarter, ok := m.sender.(Restarter)
+	if !ok {
+		return nil
+	}
+	return func() tea.Msg {
+		return restartedMsg{err: restarter.Restart()}
+	}
+}
+
 // promptSentMsg reports the outcome of a submitted prompt.
 type promptSentMsg struct{ err error }
 

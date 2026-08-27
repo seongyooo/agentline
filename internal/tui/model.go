@@ -72,6 +72,10 @@ type Model struct {
 	replyScroll    int
 	activityScroll int
 
+	// inspecting is the tree entry being looked at, which takes over the
+	// mission column while it is set.
+	inspecting *project.Node
+
 	tree   treeView
 	width  int
 	height int
@@ -148,6 +152,15 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.sendErr = msg.err
 		return m, nil
 
+	case restartedMsg:
+		m.sendErr = msg.err
+		if msg.err == nil {
+			// The new session carries none of the old context, so the
+			// figures describing the old one no longer apply.
+			m.st.ResetSession()
+		}
+		return m, nil
+
 	case tea.MouseMsg:
 		return m.mouse(msg)
 
@@ -171,6 +184,8 @@ func (m Model) typing(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	switch msg.String() {
 	case "ctrl+c":
 		return m, tea.Quit
+	case "ctrl+n":
+		return m, m.restartSession()
 	case "enter":
 		return m, m.submitPrompt()
 	case "esc", "tab":
@@ -191,6 +206,9 @@ func (m Model) navigating(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	// deliberately not a quit key.
 	case "q", "ctrl+c":
 		return m, tea.Quit
+
+	case "ctrl+n":
+		return m, m.restartSession()
 
 	case "tab":
 		return m, m.setFocus(m.cycle(m.focus, l))
@@ -220,10 +238,14 @@ func (m Model) navigating(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 			m.syncScroll()
 		}
 	case "enter":
+		// Enter looks at the selected entry rather than toggling it, since
+		// left and right already open and close directories.
 		if m.focus == focusTree {
-			m.toggle()
-			m.syncScroll()
+			m.inspecting = m.selected()
 		}
+
+	case "esc":
+		m.inspecting = nil
 	}
 	return m, nil
 }

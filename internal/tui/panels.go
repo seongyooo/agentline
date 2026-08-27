@@ -3,11 +3,11 @@ package tui
 import (
 	"fmt"
 	"path"
+	"sort"
 	"strings"
 	"time"
 	"unicode/utf8"
 
-	"github.com/charmbracelet/bubbles/textinput"
 	"github.com/charmbracelet/lipgloss"
 	"github.com/charmbracelet/x/ansi"
 
@@ -18,6 +18,11 @@ import (
 
 // treeChrome is the rows the project panel spends on its label and spacer.
 const treeChrome = 2
+
+// heavyContext is where a session's accumulated context is worth pointing out.
+// A session AgentView owns is never compacted, so past this the same history
+// is re-sent on every turn and the cost per turn stops falling.
+const heavyContext = 120_000
 
 // header renders the product name and the agent's status on one row.
 func (m Model) header(width int) string {
@@ -376,25 +381,57 @@ func (m Model) sessionLines() []string {
 	if s.Model != "" {
 		parts = append(parts, shortModel(s.Model))
 	}
-	if s.Limit != "" {
-		usage := fmt.Sprintf("%s %d%%", limitLabel(s.Limit), int(s.Used*100+0.5))
-		if s.Overage {
-			usage += " over"
+	parts = append(parts, limitParts(s)...)
+
+	// The context this session carries. A turn re-sends everything before it,
+	// so this number climbing is what makes a long session expensive, and it
+	// is the one thing a usage readout here is actually for.
+	var detail []string
+	if s.InputTokens > 0 {
+		context := fmt.Sprintf("ctx %s", compactCount(s.InputTokens))
+		if s.InputTokens >= heavyContext {
+			// A session AgentView owns is never compacted, so a context this
+			// large will keep costing this much on every further turn.
+			context += " — restart with ctrl+n to clear"
 		}
-		if !s.ResetsAt.IsZero() {
-			usage += " · resets " + s.ResetsAt.Format("15:04")
-		}
-		parts = append(parts, usage)
+		detail = append(detail, context)
 	}
-	if len(parts) == 0 {
+	if s.Turns > 0 {
+		detail = append(detail, fmt.Sprintf("%d turns", s.Turns))
+	}
+	if s.CostUSD > 0 {
+		detail = append(detail, fmt.Sprintf("$%.2f", s.CostUSD))
+	}
+
+	if len(parts) == 0 && len(detail) == 0 {
 		return nil
 	}
 
 	style := styleDim
-	if s.Used >= 0.9 {
-		style = styleWarn // close enough to the limit to be worth noticing
+	if _, peak, ok := s.Peak(); ok && peak.Used >= 0.9 {
+		// The window closest to running out is the one worth noticing.
+		style = styleWarn
 	}
-	return []string{styleLabel.Render("SESSION"), style.Render(strings.Join(parts, "   "))}
+
+	lines := []string{styleLabel.Render("SESSION")}
+	if len(parts) > 0 {
+		lines = append(lines, style.Render(strings.Join(parts, "   ")))
+	}
+	if len(detail) > 0 {
+		lines = append(lines, styleDim.Render(strings.Join(detail, "   ")))
+	}
+	return lines
+}
+
+// compactCount renders a token count in the units people read them in.
+func compactCount(n int) string {
+	switch {
+	case n >= 1_000_000:
+		return fmt.Sprintf("%.1fM", float64(n)/1_000_000)
+	case n >= 1_000:
+		return fmt.Sprintf("%.0fk", float64(n)/1_000)
+	}
+	return fmt.Sprint(n)
 }
 
 // shortModel trims a model id to the part a person recognizes.
@@ -406,6 +443,46 @@ func shortModel(model string) string {
 	return model
 }
 
+// limitOrder is the order usage windows are shown in, shortest first, so the
+// one that runs out soonest is read first.
+var limitOrder = []string{"five_hour", "seven_day", "weekly", "monthly"}
+
+// limitParts renders each usage window the agent reported.
+func limitParts(s *events.Session) []string {
+	seen := map[string]bool{}
+	names := make([]string, 0, len(s.Limits))
+
+	for _, name := range limitOrder {
+		if _, ok := s.Limits[name]; ok {
+			names = append(names, name)
+			seen[name] = true
+		}
+	}
+	// Anything reported that this list does not know about is still shown,
+	// rather than dropped for not being recognised.
+	for name := range s.Limits {
+		if !seen[name] {
+			names = append(names, name)
+		}
+	}
+	sort.Strings(names[len(seen):])
+
+	parts := make([]string, 0, len(names))
+	for _, name := range names {
+		limit := s.Limits[name]
+
+		text := fmt.Sprintf("%s %d%%", limitLabel(name), int(limit.Used*100+0.5))
+		if limit.Overage {
+			text += " over"
+		}
+		if !limit.ResetsAt.IsZero() {
+			text += " ↻" + resetLabel(limit.ResetsAt)
+		}
+		parts = append(parts, text)
+	}
+	return parts
+}
+
 // limitLabel names a usage window in words.
 func limitLabel(limit string) string {
 	switch limit {
@@ -413,8 +490,19 @@ func limitLabel(limit string) string {
 		return "5h"
 	case "seven_day", "weekly":
 		return "week"
+	case "monthly":
+		return "month"
 	}
 	return strings.ReplaceAll(limit, "_", " ")
+}
+
+// resetLabel says when a window rolls over: a clock time if that is today,
+// and a date once it is far enough out that a clock time would mislead.
+func resetLabel(at time.Time) string {
+	if until := time.Until(at); until < 24*time.Hour {
+		return at.Format("15:04")
+	}
+	return at.Format("Jan 2")
 }
 
 // nowLines renders the NOW panel's body.
@@ -529,43 +617,52 @@ func (m Model) promptField(width int) string {
 		return fitLine(styleError.Render("> "+firstLine(m.sendErr.Error())), width)
 	}
 
-	// The field is sized in characters, but Korean and other CJK text takes
-	// two cells per character, so a field that fits by count can still
-	// overflow its box. It is given a conservative character budget and then
-	// clamped by measured width, which holds whatever the text contains.
-	field := m.input
-	field.Width = max(width/2, 8)
-
-	return fitLine(m.scrolledPrompt(field, width), width)
+	// The field is rendered here rather than by the widget, which pads to a
+	// character count. Korean and other CJK text takes two cells per
+	// character, so a widget-padded field runs two cells past its box for
+	// every Hangul syllable and the line wraps around the screen.
+	return fitLine(m.input.Prompt+m.promptText(width), width)
 }
 
-// scrolledPrompt keeps the caret in view when the text is wider than the box.
+// promptText is the value with the caret end kept in view.
 //
-// Without this a long line would be cut at the box's edge and the user would
-// be typing somewhere they cannot see.
-func (m Model) scrolledPrompt(field textinput.Model, width int) string {
-	rendered := field.View()
-	if ansi.StringWidth(rendered) <= width {
-		return rendered
+// Everything is measured in terminal cells, so a line of Korean occupies what
+// it actually occupies. When the text is wider than the box the front is
+// dropped, since the end is where the caret is while composing.
+func (m Model) promptText(width int) string {
+	value := m.input.Value()
+	if value == "" && !m.inputFocused() {
+		return styleDim.Render(m.input.Placeholder)
 	}
 
-	// Show the tail, which is where the caret is while composing.
-	value := field.Value()
-	visible := max(width-4, 4)
-	for ansi.StringWidth(value) > visible && len(value) > 0 {
+	visible := max(width-ansi.StringWidth(m.input.Prompt)-1, 4)
+	if ansi.StringWidth(value) <= visible {
+		return value
+	}
+
+	// Drop leading characters until the tail fits, leaving room for the mark
+	// that says text was dropped.
+	for ansi.StringWidth(value) > visible-1 && value != "" {
 		_, size := utf8.DecodeRuneInString(value)
 		value = value[size:]
 	}
-	return field.Prompt + "…" + value
+	return "…" + value
 }
 
 // inputHint says what the keys do, which changes with focus.
 func (m Model) inputHint() string {
 	switch {
-	case !m.canSend():
-		return "q quit"
 	case m.inputFocused():
 		return "enter send   esc cancel"
+	case m.inspecting != nil:
+		return "esc back   q quit"
+	case m.focus == focusTree:
+		if m.canSend() {
+			return "enter inspect   i prompt   q quit"
+		}
+		return "enter inspect   tab focus   q quit"
+	case !m.canSend():
+		return "tab focus   q quit"
 	default:
 		return "tab focus   i prompt   q quit"
 	}

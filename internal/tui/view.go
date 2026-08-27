@@ -34,7 +34,13 @@ func (m Model) View() string {
 
 // body renders the mission panel, beside the project tree when there is room.
 func (m Model) body(l Layout, now time.Time) []string {
-	mission := fit(m.missionPanel(l), l.MissionWidth(), l.BodyHeight)
+	// Looking at a tree entry replaces the mission column: the question being
+	// asked is about that entry, not about the agent's goal.
+	panel := m.missionPanel(l)
+	if m.inspecting != nil {
+		panel = m.inspectPanel(l, m.inspecting, now)
+	}
+	mission := fit(panel, l.MissionWidth(), l.BodyHeight)
 	if !l.ShowTree {
 		return mission
 	}

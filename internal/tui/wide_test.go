@@ -33,6 +33,21 @@ func TestKoreanPromptStaysInsideTheBox(t *testing.T) {
 	}
 }
 
+// The widget pads its field to a character count, which runs two cells past
+// the box for every Hangul syllable. The bar must be measured in cells, not
+// characters, however much CJK text it holds.
+func TestPromptBarIsMeasuredInCells(t *testing.T) {
+	m, _ := sendable(t)
+	m = focusPromptKey(m)
+
+	for _, text := range []string{"", "hello", "안녕하세요", "안녕하세요 hello 반갑습니다"} {
+		m.input.SetValue(text)
+		if got := ansi.StringWidth(m.inputBar(100)); got != 100 {
+			t.Errorf("bar with %q is %d cells, want 100", text, got)
+		}
+	}
+}
+
 // Mixed-width text is the common case in practice.
 func TestMixedWidthPromptStaysInsideTheBox(t *testing.T) {
 	m, _ := sendable(t)
@@ -89,15 +104,70 @@ func TestSessionLineShowsReportedFacts(t *testing.T) {
 	st.Apply(events.Event{
 		Type: events.SessionInfo, Timestamp: time.Now(), Source: "claude-code",
 		Session: &events.Session{
-			Model: "claude-opus-5-20260514", Limit: "five_hour", Used: 0.62,
-			ResetsAt: time.Date(2026, 8, 27, 16, 53, 0, 0, time.Local),
+			Model: "claude-opus-5-20260514",
+			Limits: map[string]events.Limit{
+				"five_hour": {Used: 0.62, ResetsAt: time.Now().Add(2 * time.Hour)},
+			},
 		},
 	})
 
 	model, _ := New(st, nil, nil).Update(tea.WindowSizeMsg{Width: 100, Height: 30})
 	out := ansi.Strip(model.(Model).View())
 
-	for _, want := range []string{"SESSION", "opus-5", "5h 62%", "16:53"} {
+	for _, want := range []string{"SESSION", "opus-5", "5h 62%"} {
+		if !strings.Contains(out, want) {
+			t.Errorf("session line missing %q:\n%s", want, out)
+		}
+	}
+}
+
+// Both usage windows are reported separately, so a weekly report must not
+// erase the five-hour one.
+func TestBothUsageWindowsAreShown(t *testing.T) {
+	st := state.New("/proj")
+	st.Project.Tree = project.MockTree()
+	st.Apply(events.Event{
+		Type: events.SessionInfo, Timestamp: time.Now(), Source: "claude-code",
+		Session: &events.Session{
+			Model: "claude-opus-5-20260514",
+			Limits: map[string]events.Limit{
+				"five_hour": {Used: 0.62, ResetsAt: time.Now().Add(2 * time.Hour)},
+				"seven_day": {Used: 0.31, ResetsAt: time.Now().Add(80 * time.Hour)},
+			},
+		},
+	})
+
+	model, _ := New(st, nil, nil).Update(tea.WindowSizeMsg{Width: 120, Height: 30})
+	out := ansi.Strip(model.(Model).View())
+
+	for _, want := range []string{"5h 62%", "week 31%"} {
+		if !strings.Contains(out, want) {
+			t.Errorf("session line missing %q:\n%s", want, out)
+		}
+	}
+	// Shortest window first: it is the one that runs out soonest.
+	if strings.Index(out, "5h 62%") > strings.Index(out, "week 31%") {
+		t.Errorf("weekly window is shown before the five-hour one:\n%s", out)
+	}
+}
+
+// The context a session carries is what makes a long conversation expensive,
+// so it has to be visible rather than inferred from a slowly draining quota.
+func TestSessionLineShowsContextSize(t *testing.T) {
+	st := state.New("/proj")
+	st.Project.Tree = project.MockTree()
+	st.Apply(events.Event{
+		Type: events.SessionInfo, Timestamp: time.Now(), Source: "claude-code",
+		Session: &events.Session{
+			Model: "claude-opus-5-20260514",
+			Turns: 7, InputTokens: 143_000, OutputTokens: 2_100, CostUSD: 1.37,
+		},
+	})
+
+	model, _ := New(st, nil, nil).Update(tea.WindowSizeMsg{Width: 100, Height: 30})
+	out := ansi.Strip(model.(Model).View())
+
+	for _, want := range []string{"ctx 143k", "7 turns", "$1.37"} {
 		if !strings.Contains(out, want) {
 			t.Errorf("session line missing %q:\n%s", want, out)
 		}
@@ -118,8 +188,9 @@ func TestSessionLineKeepsTheLayout(t *testing.T) {
 		Type: events.SessionInfo, Timestamp: time.Now(), Source: "claude-code",
 		Session: &events.Session{
 			Model: "claude-some-very-long-model-name-20260514",
-			Limit: "five_hour", Used: 0.97, Overage: true,
-			ResetsAt: time.Now().Add(time.Hour),
+			Limits: map[string]events.Limit{
+				"five_hour": {Used: 0.97, Overage: true, ResetsAt: time.Now().Add(time.Hour)},
+			},
 		},
 	})
 

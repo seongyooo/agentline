@@ -14,6 +14,10 @@ const (
 	focusReply
 	focusActivity
 	focusPrompt
+
+	// focusInspect is not in the tab order: it is what the mission column
+	// shows while an entry is being looked at, not a panel to cycle through.
+	focusInspect
 )
 
 // cycle returns the next focus in tab order, skipping panels that are not on
