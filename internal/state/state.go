@@ -66,6 +66,10 @@ type AgentState struct {
 	Next     string
 	Activity []Action
 
+	// Reply is the last thing the agent said, kept so the user can tell a
+	// turn landed. AgentView shows a line of it, never the conversation.
+	Reply string
+
 	// missionPinned marks a mission the user set explicitly, which observed
 	// prompts must not overwrite.
 	missionPinned bool
@@ -154,7 +158,11 @@ func (s *State) Apply(e events.Event) {
 
 	case events.UserPrompt:
 		s.setMission(e.Message)
+		s.Agent.Reply = "" // the previous answer is about to be superseded
 		s.markWorking(e.Timestamp)
+
+	case events.AgentReply:
+		s.Agent.Reply = headline(e.Message)
 	}
 }
 

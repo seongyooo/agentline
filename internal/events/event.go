@@ -22,6 +22,10 @@ const (
 	// UserPrompt is the instruction the user gave the agent. It carries the
 	// prompt text in Message and is what MISSION is derived from.
 	UserPrompt Type = "user_prompt"
+
+	// AgentReply is what the agent said back, in Message. AgentView shows
+	// only enough of it to know the turn landed; it is not a transcript.
+	AgentReply Type = "agent_reply"
 )
 
 // Status is the agent's observable lifecycle state.
@@ -79,7 +83,7 @@ func (e Event) Valid() bool {
 		return false
 	case AgentError:
 		return true
-	case UserPrompt:
+	case UserPrompt, AgentReply:
 		return e.Message != ""
 	}
 	return false
