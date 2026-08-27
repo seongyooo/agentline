@@ -17,8 +17,18 @@ type streamEvent struct {
 	Message streamMessage `json:"message"`
 	IsError bool          `json:"is_error"`
 
-	// Model is reported when a turn starts.
-	Model string `json:"model"`
+	// Model, PermissionMode and SlashCommands are announced when a session
+	// starts, and are what the UI offers rather than a guessed list.
+	Model          string   `json:"model"`
+	PermissionMode string   `json:"permissionMode"`
+	SlashCommands  []string `json:"slash_commands"`
+
+	// Response carries the outcome of a control request.
+	Response *struct {
+		Subtype   string `json:"subtype"`
+		RequestID string `json:"request_id"`
+		Error     string `json:"error"`
+	} `json:"response"`
 
 	// Usage and cost are reported when a turn ends. They are what makes the
 	// session's real cost visible rather than guessed at.
@@ -118,11 +128,31 @@ func (t *streamTranslator) translateLine(line []byte) []events.Event {
 		return out
 	case "system":
 		if e.Subtype == "init" {
-			out := []events.Event{t.status(events.StatusWorking)}
-			if e.Model != "" {
-				out = append(out, t.session(func(s *events.Session) { s.Model = e.Model }))
+			// The session announces what it is and what it accepts, so the
+			// UI offers exactly that rather than a list it made up.
+			return []events.Event{
+				t.status(events.StatusWorking),
+				t.session(func(s *events.Session) {
+					if e.Model != "" {
+						s.Model = e.Model
+					}
+					if e.PermissionMode != "" {
+						s.Capabilities.PermissionMode = e.PermissionMode
+					}
+					if len(e.SlashCommands) > 0 {
+						s.Capabilities.SlashCommands = e.SlashCommands
+					}
+				}),
 			}
-			return out
+		}
+
+	case "control_response":
+		// Only failures are worth surfacing: a control request that worked
+		// shows up as the change it made.
+		if e.Response != nil && e.Response.Subtype == "error" {
+			return []events.Event{t.event(events.AgentError, func(ev *events.Event) {
+				ev.Message = firstLine(e.Response.Error)
+			})}
 		}
 
 	case "rate_limit_event":

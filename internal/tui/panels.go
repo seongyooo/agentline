@@ -27,7 +27,13 @@ const heavyContext = 120_000
 // header renders the product name and the agent's status on one row.
 func (m Model) header(width int) string {
 	symbol, text, style := statusLabel(m.st.Agent.Status)
+
 	left := styleTitle.Render("AGENTVIEW")
+	// How tool calls are being approved changes what the agent will do
+	// without asking, so it belongs beside the status rather than buried.
+	if mode := m.st.PermissionMode(); mode != "" {
+		left += styleDim.Render("   " + modeLabel(mode))
+	}
 	right := style.Render(fmt.Sprintf("%s %s  %s", symbol, strings.ToUpper(m.st.Agent.Agent), text))
 
 	gap := width - ansi.StringWidth(left) - ansi.StringWidth(right)
@@ -669,11 +675,30 @@ func (m Model) promptText(width int) string {
 	return "…" + value
 }
 
+// modeLabel names a permission mode in words that say what it does.
+func modeLabel(mode string) string {
+	switch mode {
+	case "default", "manual":
+		return "asks first"
+	case "acceptEdits":
+		return "edits allowed"
+	case "auto", "dontAsk":
+		return "auto"
+	case "plan":
+		return "planning"
+	case "bypassPermissions":
+		return "no checks"
+	}
+	return mode
+}
+
 // inputHint says what the keys do, which changes with focus.
 func (m Model) inputHint() string {
 	switch {
+	case m.inputFocused() && len(m.slashMatches()) > 0:
+		return "tab complete   enter send"
 	case m.inputFocused():
-		return "enter send   esc cancel"
+		return "enter send   shift+tab mode   esc cancel"
 	case m.inspecting != nil:
 		return "esc back   q quit"
 	case m.focus == focusTree:

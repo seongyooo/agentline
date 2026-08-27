@@ -172,6 +172,15 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		}
 		return m, nil
 
+	case modeChangedMsg:
+		// Recorded only once the session accepted it, so the header never
+		// shows a mode the agent is not actually in.
+		m.sendErr = msg.err
+		if msg.err == nil {
+			m.st.SetPermissionMode(msg.mode)
+		}
+		return m, nil
+
 	case tea.MouseMsg:
 		return m.mouse(msg)
 
@@ -197,9 +206,21 @@ func (m Model) typing(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		return m, tea.Quit
 	case "ctrl+n":
 		return m, m.restartSession()
+	case "shift+tab":
+		return m, m.cyclePermissionMode()
 	case "enter":
 		return m, m.submitPrompt()
-	case "esc", "tab":
+
+	case "tab":
+		// Tab completes a command being typed, and only leaves the field
+		// when there is nothing to complete.
+		if m.completeSlash() {
+			return m, nil
+		}
+		m.setFocus(focusTree)
+		return m, nil
+
+	case "esc":
 		m.setFocus(focusTree)
 		return m, nil
 	}
@@ -220,6 +241,9 @@ func (m Model) navigating(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 
 	case "ctrl+n":
 		return m, m.restartSession()
+
+	case "shift+tab":
+		return m, m.cyclePermissionMode()
 
 	case "tab":
 		return m, m.setFocus(m.cycle(m.focus, l))

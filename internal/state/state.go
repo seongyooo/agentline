@@ -150,6 +150,32 @@ func (s *State) ResetSession() {
 	s.Agent.Progress = Progress{}
 }
 
+// PermissionMode is how the session approves tool calls, or empty when the
+// agent has not said.
+func (s *State) PermissionMode() string {
+	if s.Agent.Session == nil {
+		return ""
+	}
+	return s.Agent.Session.Capabilities.PermissionMode
+}
+
+// SetPermissionMode records a mode the session has accepted.
+func (s *State) SetPermissionMode(mode string) {
+	if s.Agent.Session == nil {
+		s.Agent.Session = &events.Session{}
+	}
+	s.Agent.Session.Capabilities.PermissionMode = mode
+}
+
+// SlashCommands are the commands the agent said it accepts, and is empty
+// until it says so. AgentView offers no command it has not been told about.
+func (s *State) SlashCommands() []string {
+	if s.Agent.Session == nil {
+		return nil
+	}
+	return s.Agent.Session.Capabilities.SlashCommands
+}
+
 // Observed reports whether any agent event has been applied. The UI uses it to
 // tell "nothing is wired up" apart from "the agent has nothing to report".
 func (s *State) Observed() bool { return s.observed }

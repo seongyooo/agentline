@@ -27,7 +27,14 @@ func (m Model) View() string {
 		lines = append(lines, rule(m.width))
 		lines = append(lines, fit(m.activityPanel(l), m.width, l.ActivityHeight()-1)...)
 	}
-	lines = append(lines, rule(m.width), m.inputBar(m.width))
+	// The commands still matching take the rule's row rather than a row of
+	// their own, so offering them costs the layout nothing.
+	if hint := m.slashHint(m.width); hint != "" {
+		lines = append(lines, fitLine(styleDim.Render(hint), m.width))
+	} else {
+		lines = append(lines, rule(m.width))
+	}
+	lines = append(lines, m.inputBar(m.width))
 
 	return strings.Join(lines, "\n")
 }

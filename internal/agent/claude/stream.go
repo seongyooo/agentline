@@ -139,14 +139,6 @@ func waitOrKill(cmd *exec.Cmd) {
 // The prompt is also emitted as an event, so it reaches MISSION by the same
 // path as one observed from outside — the UI never learns about it separately.
 func (s *Stream) Send(prompt string) error {
-	s.mu.Lock()
-	stdin, closed := s.stdin, s.closed
-	s.mu.Unlock()
-
-	if stdin == nil || closed {
-		return ErrNotRunning
-	}
-
 	line, err := json.Marshal(map[string]any{
 		"type": "user",
 		"message": map[string]any{
@@ -157,11 +149,26 @@ func (s *Stream) Send(prompt string) error {
 	if err != nil {
 		return fmt.Errorf("encode prompt: %w", err)
 	}
-
-	if _, err := stdin.Write(append(line, '\n')); err != nil {
-		return fmt.Errorf("send prompt: %w", err)
+	if err := s.write(line); err != nil {
+		return err
 	}
+
 	s.send(s.translator.prompt(prompt))
+	return nil
+}
+
+// write sends one line to the running session.
+func (s *Stream) write(line []byte) error {
+	s.mu.Lock()
+	stdin, closed := s.stdin, s.closed
+	s.mu.Unlock()
+
+	if stdin == nil || closed {
+		return ErrNotRunning
+	}
+	if _, err := stdin.Write(append(line, '\n')); err != nil {
+		return fmt.Errorf("write to session: %w", err)
+	}
 	return nil
 }
 

@@ -5,6 +5,8 @@ import (
 
 	"github.com/charmbracelet/bubbles/textinput"
 	tea "github.com/charmbracelet/bubbletea"
+
+	"github.com/seonl/agentview/internal/agent/claude"
 )
 
 // Sender submits a prompt to the agent. It is satisfied by a source that owns
@@ -12,6 +14,48 @@ import (
 // to and the input box stays inert.
 type Sender interface {
 	Send(prompt string) error
+}
+
+// Controller changes a running session's settings.
+//
+// These are things a flag can only decide at launch, so a session AgentView
+// owns can offer them and one it is merely watching cannot.
+type Controller interface {
+	SetPermissionMode(mode string) error
+}
+
+// modeChangedMsg reports the outcome of a permission mode change.
+type modeChangedMsg struct {
+	mode string
+	err  error
+}
+
+// cyclePermissionMode asks the session for the next mode in the cycle.
+//
+// The change is only recorded once the session accepts it, so the header
+// never shows a mode the agent is not actually in.
+func (m *Model) cyclePermissionMode() tea.Cmd {
+	controller, ok := m.sender.(Controller)
+	if !ok {
+		return nil
+	}
+	next := nextPermissionMode(m.st.PermissionMode())
+
+	return func() tea.Msg {
+		return modeChangedMsg{mode: next, err: controller.SetPermissionMode(next)}
+	}
+}
+
+// nextPermissionMode is the mode after the current one, wrapping around. An
+// unfamiliar mode starts the cycle from the beginning rather than being
+// treated as a position in it.
+func nextPermissionMode(current string) string {
+	for i, mode := range claude.PermissionModes {
+		if mode == current {
+			return claude.PermissionModes[(i+1)%len(claude.PermissionModes)]
+		}
+	}
+	return claude.PermissionModes[0]
 }
 
 // Restarter starts a fresh session, discarding accumulated context.

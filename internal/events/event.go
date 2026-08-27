@@ -110,6 +110,21 @@ type Session struct {
 	// CostUSD is what the agent reported this session has cost so far, and
 	// is zero when it reported nothing.
 	CostUSD float64 `json:"cost_usd,omitempty"`
+
+	// Capabilities are what this session announced it supports.
+	Capabilities Capabilities `json:"capabilities,omitzero"`
+}
+
+// Capabilities are what the agent reported it can do this session.
+//
+// They are read from the agent's own announcement rather than assumed, so a
+// command it does not offer is never presented as though it exists.
+type Capabilities struct {
+	// PermissionMode is how tool calls are currently being approved.
+	PermissionMode string `json:"permission_mode,omitempty"`
+
+	// SlashCommands are the commands the agent said it accepts.
+	SlashCommands []string `json:"slash_commands,omitempty"`
 }
 
 // Limit is how much of one usage window has been consumed.
