@@ -76,6 +76,14 @@ PULSE  █▆▆█▆▆█▆▆█▆▁     ▄▆█▆▆█▆▆█▆�
   only thing AgentLine interrupts you for, and the reason the rest of it can stay quiet.
   It needs a session AgentLine owns (`--run`); watching one from the outside means the
   question was never routed here.
+- **SPINNING** — an agent that is working and getting nowhere: one file rewritten over
+  and over, the same command failing the same way, minutes of activity that reach nothing
+  new. The panel states what was counted — `Valve.cs written 6 times`, `4 failures in the
+  last few minutes` — and stops there, because a refactor and a loop look identical from
+  outside and only you can tell which this is. `x` stops the agent, `esc` puts the
+  evidence away until the repetition gets worse. This is the failure mode that costs the
+  most and shows the least: the agent's own terminal cannot see it, because a scrollback
+  has no memory of what it already said.
 - **ACTIVITY** — a timestamped log of recent observed actions, which ages out.
 - **PULSE** — the whole session on one row: column height is how many actions landed in
   that slice of time, colour is the most notable kind in it, and gaps are gaps. It is
@@ -206,6 +214,7 @@ panel is marked `◂` in its heading.
 | `esc` | Back out of a description or the prompt |
 | `i` | Jump straight to the prompt |
 | `y` `n` | Allow / deny what the agent is blocked on |
+| `x` | Stop what a spinning agent is doing, without ending the session |
 | `a` | Allow it and take the permission mode the agent suggested |
 | `shift+tab` | Cycle the permission mode |
 | `ctrl+n` | Start a fresh session, clearing accumulated context |
@@ -323,6 +332,8 @@ assumed.
 - **Codex against the real binary** — the adapter is written and covered, but has only
   been run against a stand-in.
 - **Since you looked away** — the net effect of a stretch of work, not just its shape.
+- **More patterns worth counting** — beyond repetition: cost per turn that stops falling,
+  a task list that stops moving.
 - **Deeper Git awareness** — beyond the current branch and changed files.
 - **Intelligence layer** — inferring `NEXT` and summarising phases from observed events.
 
