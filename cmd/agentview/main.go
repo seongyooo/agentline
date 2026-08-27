@@ -31,7 +31,8 @@ func main() {
 func run() error {
 	rootFlag := flag.String("root", "", "project root (default: detected from the working directory)")
 	mission := flag.String("mission", "", "pin the MISSION panel to this goal instead of deriving it from the agent's prompts")
-	sourceName := flag.String("source", "claude", `event source: "claude" or "mock"`)
+	run := flag.Bool("run", false, "launch and own a Claude Code session, making the prompt box live")
+	sourceName := flag.String("source", "claude", `event source when not using --run: "claude" or "mock"`)
 	addr := flag.String("addr", claude.DefaultAddr, "address to receive Claude Code hooks on")
 	interval := flag.Duration("mock-interval", 2*time.Second, "delay between mock events")
 	printHooks := flag.Bool("print-hooks", false, "print the hook settings to install in the observed project, then exit")
@@ -65,14 +66,30 @@ func run() error {
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 
-	stream, err := startSource(ctx, *sourceName, sourceConfig{
-		root:     root,
-		addr:     *addr,
-		scanner:  scanner,
-		tree:     st.Project.Tree,
-		interval: *interval,
-	})
-	hint := sourceHint(*sourceName, *addr)
+	model := tui.New(st, scanner, nil)
+
+	var stream <-chan events.Event
+	hint := ""
+
+	if *run {
+		// AgentView owns the session, so the prompt box can submit to it.
+		session := claude.NewStream(root)
+		stream, err = session.Events(ctx)
+		if err == nil {
+			model = model.WithSender(session)
+			hint = "Session ready — press tab to send a prompt"
+		}
+	} else {
+		stream, err = startSource(ctx, *sourceName, sourceConfig{
+			root:     root,
+			addr:     *addr,
+			scanner:  scanner,
+			tree:     st.Project.Tree,
+			interval: *interval,
+		})
+		hint = sourceHint(*sourceName, *addr)
+	}
+
 	if err != nil {
 		// A UI with no source still shows the project. Say why it is idle
 		// rather than leaving it looking broken.
@@ -81,8 +98,7 @@ func run() error {
 	}
 
 	log.Printf("starting agentview in %s", root)
-	model := tui.New(st, scanner, stream).WithHint(hint)
-	_, err = tea.NewProgram(model, tea.WithAltScreen()).Run()
+	_, err = tea.NewProgram(model.WithStream(stream).WithHint(hint), tea.WithAltScreen()).Run()
 	return err
 }
 
