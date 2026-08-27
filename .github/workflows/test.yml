@@ -1,0 +1,46 @@
+name: test
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  test:
+    # AgentLine reads paths, launches processes and measures terminal widths,
+    # and all three differ between platforms — the shell tool is called
+    # PowerShell on Windows and Bash elsewhere. Testing on one would leave the
+    # others to break silently.
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, macos-latest, windows-latest]
+
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v5
+
+      - uses: actions/setup-go@v6
+        with:
+          go-version-file: go.mod
+          cache: true
+
+      - name: Check formatting
+        # gofmt exits 0 whatever it finds, so its output is what has to be
+        # checked rather than its status.
+        run: |
+          unformatted=$(gofmt -l cmd internal)
+          if [ -n "$unformatted" ]; then
+            echo "not gofmt'd:"
+            echo "$unformatted"
+            exit 1
+          fi
+        shell: bash
+
+      - name: Vet
+        run: go vet ./...
+
+      - name: Test
+        # The race detector is worth the time here: the adapter owns a
+        # subprocess and hands events to the UI goroutine.
+        run: go test -race -timeout 10m ./...
