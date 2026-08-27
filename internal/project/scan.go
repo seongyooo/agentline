@@ -122,6 +122,71 @@ func (s *Scanner) cap(nodes []*Node) []*Node {
 	})
 }
 
+// Refresh re-reads a directory that has already been loaded, picking up files
+// created since. The tree is a snapshot of one scan, so without this a file
+// the agent just wrote would never appear.
+//
+// Expansion state of the surviving children is preserved, so a refresh does
+// not collapse what the user had opened.
+func (s *Scanner) Refresh(n *Node) {
+	if n == nil || !n.Dir || n.Placeholder {
+		return
+	}
+
+	// Reloading replaces the child nodes, so every directory the user had
+	// open below here is collected first and reopened afterwards. Without
+	// this, one new file would collapse the whole subtree under the reader.
+	open := map[string]bool{}
+	collectExpanded(n, open)
+
+	n.Loaded = false
+	n.Children = nil
+	s.Load(n)
+	s.reopen(n, open)
+}
+
+// collectExpanded records the paths of every expanded directory in a subtree.
+func collectExpanded(n *Node, into map[string]bool) {
+	for _, c := range n.Children {
+		if !c.Dir {
+			continue
+		}
+		if c.Expanded {
+			into[c.Path] = true
+		}
+		collectExpanded(c, into)
+	}
+}
+
+// reopen re-expands the directories that were open before a reload.
+func (s *Scanner) reopen(n *Node, open map[string]bool) {
+	for _, c := range n.Children {
+		if !c.Dir || !open[c.Path] {
+			continue
+		}
+		c.Expanded = true
+		s.Load(c)
+		s.reopen(c, open)
+	}
+}
+
+// RefreshParent re-reads the directory containing a root-relative path.
+//
+// The directory itself may be as new as the file, so this walks up to the
+// nearest ancestor the tree already knows and reloads from there.
+func (s *Scanner) RefreshParent(root *Node, target string) {
+	for dir := path.Dir(target); ; dir = path.Dir(dir) {
+		if dir == "." || dir == "/" || dir == "" {
+			s.Refresh(root)
+			return
+		}
+		if n := Find(root, dir); n != nil {
+			s.Refresh(n)
+			return
+		}
+	}
+}
+
 // Reveal expands every directory along a root-relative path so the node
 // becomes visible, loading directories as it goes. It returns the node, or nil
 // if the path does not exist.

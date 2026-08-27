@@ -2,7 +2,10 @@
 // about agents or rendering.
 package project
 
-import "path"
+import (
+	"path"
+	"strings"
+)
 
 // Node is a file or directory in the project tree.
 //
@@ -75,6 +78,45 @@ func flattenChildren(children []*Node, indent string) []Row {
 		}
 	}
 	return rows
+}
+
+// Insert places a node for a root-relative path that is not on disk yet,
+// creating any missing directories along the way.
+//
+// A file the agent has announced but not yet written has nothing for a scan to
+// find, so it is put in the tree directly. It is ordinary from then on: the
+// next refresh of its directory replaces it with what was actually written.
+func Insert(root *Node, target string) *Node {
+	if root == nil || target == "" {
+		return nil
+	}
+
+	node := root
+	segments := strings.Split(path.Clean(target), "/")
+	for i, name := range segments {
+		child := childByName(node, name)
+		if child == nil {
+			child = &Node{
+				Name: name,
+				Path: path.Join(node.Path, name),
+				Dir:  i < len(segments)-1,
+			}
+			child.Loaded = child.Dir // nothing on disk to read for it yet
+			node.Children = append(node.Children, child)
+			sortNodes(node.Children)
+		}
+		node = child
+	}
+	return node
+}
+
+func childByName(n *Node, name string) *Node {
+	for _, c := range n.Children {
+		if c.Name == name {
+			return c
+		}
+	}
+	return nil
 }
 
 // Find returns the node at a root-relative path, or nil if it is not loaded.
