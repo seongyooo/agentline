@@ -26,6 +26,11 @@ const (
 	// AgentReply is what the agent said back, in Message. AgentView shows
 	// only enough of it to know the turn landed; it is not a transcript.
 	AgentReply Type = "agent_reply"
+
+	// TaskProgress reports the agent's own task list, in Done and Total.
+	// It is a count of what the agent said it planned and finished — never
+	// an estimate of how complete the work is.
+	TaskProgress Type = "task_progress"
 )
 
 // Status is the agent's observable lifecycle state.
@@ -62,6 +67,10 @@ type Event struct {
 
 	// ExitCode is set only when the agent actually reported one.
 	ExitCode *int `json:"exit_code,omitempty"`
+
+	// Done and Total carry a TaskProgress count.
+	Done  int `json:"done,omitempty"`
+	Total int `json:"total,omitempty"`
 }
 
 // Valid reports whether the event carries the fields its Type requires.
@@ -85,6 +94,9 @@ func (e Event) Valid() bool {
 		return true
 	case UserPrompt, AgentReply:
 		return e.Message != ""
+	case TaskProgress:
+		// A count of nothing says nothing, and Done may not exceed Total.
+		return e.Total > 0 && e.Done >= 0 && e.Done <= e.Total
 	}
 	return false
 }

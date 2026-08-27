@@ -33,6 +33,27 @@ const (
 	ActionFailed   ActionKind = "failed"
 )
 
+// Progress counts the tasks the agent said it planned and finished.
+//
+// This is a tally of the agent's own list, not an estimate of how complete
+// the work is. How far along a piece of work "really" is cannot be observed,
+// and AgentView does not guess at it.
+type Progress struct {
+	Done  int
+	Total int
+}
+
+// Known reports whether the agent is keeping a task list at all.
+func (p Progress) Known() bool { return p.Total > 0 }
+
+// Fraction is the share of tasks completed, between 0 and 1.
+func (p Progress) Fraction() float64 {
+	if !p.Known() {
+		return 0
+	}
+	return float64(p.Done) / float64(p.Total)
+}
+
 // Action is a single observable agent action.
 type Action struct {
 	Kind   ActionKind
@@ -69,6 +90,11 @@ type AgentState struct {
 	// Reply is the last thing the agent said, kept so the user can tell a
 	// turn landed. AgentView shows a line of it, never the conversation.
 	Reply string
+
+	// Progress counts the agent's own task list. Its zero value means the
+	// agent is not keeping one, and AgentView then shows no progress at all
+	// rather than estimating any.
+	Progress Progress
 
 	// missionPinned marks a mission the user set explicitly, which observed
 	// prompts must not overwrite.
@@ -163,6 +189,9 @@ func (s *State) Apply(e events.Event) {
 
 	case events.AgentReply:
 		s.Agent.Reply = headline(e.Message)
+
+	case events.TaskProgress:
+		s.Agent.Progress = Progress{Done: e.Done, Total: e.Total}
 	}
 }
 

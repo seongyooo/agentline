@@ -45,10 +45,15 @@ type streamBlock struct {
 type streamTranslator struct {
 	*translator
 	pending map[string]streamBlock
+	tasks   *taskList
 }
 
 func newStreamTranslator(root string) *streamTranslator {
-	return &streamTranslator{translator: newTranslator(root), pending: map[string]streamBlock{}}
+	return &streamTranslator{
+		translator: newTranslator(root),
+		pending:    map[string]streamBlock{},
+		tasks:      newTaskList(),
+	}
 }
 
 // translateLine maps one line of output to zero or more normalized events.
@@ -92,6 +97,14 @@ func (t *streamTranslator) assistant(e streamEvent) []events.Event {
 		case "tool_use":
 			// Remembered so the matching result can say what was done.
 			t.pending[block.ID] = block
+
+			// The agent's own task list is the only honest source of
+			// progress, so its bookkeeping calls are read as they go by.
+			if done, total, ok := t.tasks.observe(block.Name, block.Input.taskFields); ok {
+				out = append(out, t.event(events.TaskProgress, func(ev *events.Event) {
+					ev.Done, ev.Total = done, total
+				}))
+			}
 
 			// Only commands are announced before they run: a command is slow
 			// enough that NOW should say it is running, while a file tool is

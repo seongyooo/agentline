@@ -69,6 +69,10 @@ type toolInput struct {
 	NotebookPath string `json:"notebook_path"`
 	Command      string `json:"command"`
 	Description  string `json:"description"`
+
+	// taskFields are set by the tools that keep the agent's task list, which
+	// is where PROGRESS is counted from.
+	taskFields
 }
 
 // path returns whichever path field the tool used.

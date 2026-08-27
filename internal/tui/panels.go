@@ -9,6 +9,7 @@ import (
 	"github.com/charmbracelet/lipgloss"
 	"github.com/charmbracelet/x/ansi"
 
+	"github.com/seonl/agentview/internal/events"
 	"github.com/seonl/agentview/internal/project"
 	"github.com/seonl/agentview/internal/state"
 )
@@ -44,6 +45,14 @@ func (m Model) missionPanel(l Layout) []string {
 	sections := []section{
 		{rank: 3, lines: []string{styleLabel.Render("MISSION"), valueOrDash(m.st.Agent.Mission)}},
 		{rank: 2, lines: now},
+	}
+	// Shown only when the agent is keeping a task list. With no list there is
+	// nothing to count, and AgentView says nothing rather than estimating.
+	if p := m.st.Agent.Progress; p.Known() {
+		sections = append(sections, section{rank: 4, lines: []string{
+			styleLabel.Render("PROGRESS"),
+			progressBar(p, l.MissionWidth()),
+		}})
 	}
 	// A line of the answer, so the user can tell the turn landed. Never the
 	// conversation: AgentView is not a transcript viewer (§18).
@@ -220,11 +229,52 @@ func (m Model) nowLines() []string {
 	}
 
 	action := m.st.Agent.Now
-	lines := []string{styleLabel.Render("NOW"), actionVerb(action.Kind)}
+	verb := actionVerb(action.Kind)
+	// How long the current action has been running is the one progress signal
+	// that is always observable, and it is what separates slow from stuck.
+	if elapsed := m.elapsed(action); elapsed != "" {
+		verb += styleDim.Render("   " + elapsed)
+	}
+
+	lines := []string{styleLabel.Render("NOW"), verb}
 	if action.Target != "" {
 		lines = append(lines, styleValue.Render(displayTarget(action)))
 	}
 	return lines
+}
+
+// elapsed renders how long the current action has been running, once that is
+// long enough to be worth saying.
+func (m Model) elapsed(action state.Action) string {
+	if action.At.IsZero() || m.st.Agent.Status != events.StatusWorking {
+		return ""
+	}
+	since := time.Since(action.At)
+	if since < 3*time.Second {
+		return ""
+	}
+
+	if since < time.Minute {
+		return fmt.Sprintf("%ds", int(since.Seconds()))
+	}
+	return fmt.Sprintf("%dm %02ds", int(since.Minutes()), int(since.Seconds())%60)
+}
+
+// progressBar renders the agent's task count.
+//
+// The tally is spelled out beside the bar, so the panel is readable when the
+// blocks do not render and so the number is never left to be eyeballed off a
+// bar. It counts tasks, not effort: three of seven tasks done says nothing
+// about how much work is left, and the label stays a plain count for that
+// reason.
+func progressBar(p state.Progress, width int) string {
+	count := fmt.Sprintf("%d/%d", p.Done, p.Total)
+
+	bars := clamp(width-len(count)-1, 4, 24)
+	filled := int(p.Fraction() * float64(bars))
+
+	bar := strings.Repeat("█", filled) + strings.Repeat("░", bars-filled)
+	return styleWorking.Render(bar) + " " + count
 }
 
 // displayTarget renders an action's target, abbreviating it only when it is
