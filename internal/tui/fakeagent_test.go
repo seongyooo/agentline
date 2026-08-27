@@ -87,9 +87,9 @@ func TestStandInAgentDrivesTheWholeUI(t *testing.T) {
 	for _, want := range []string{
 		"write the readme", // the mission, from the prompt
 		"fakeagent",        // the reply, saying plainly what produced it
-		"Context:",         // how full the context is, which is what costs
-		"5h:",              // the usage windows, both of them
-		"7d:",
+		"Context",          // how full the context is, which is what costs
+		"5h",               // the usage windows, both of them
+		"7d",
 	} {
 		if !strings.Contains(out, want) {
 			t.Errorf("interface missing %q:\n%s", want, out)

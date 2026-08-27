@@ -113,12 +113,13 @@ func TestSessionLineShowsReportedFacts(t *testing.T) {
 
 	model, _ := New(st, nil, nil).Update(tea.WindowSizeMsg{Width: 100, Height: 30})
 	out := ansi.Strip(model.(Model).View())
-
-	// Written the way Claude Code's own status line writes it, so the two do
-	// not have to be translated into each other.
-	for _, want := range []string{"Opus 5", "5h: 62%", "(reset "} {
+	// The bar says how full at a glance and the number says how full exactly.
+	// Both are checked: a terminal that draws no blocks still has the whole
+	// fact, and a reader who wants the shape need not read the number.
+	for _, want := range []string{"Opus 5", "5h", "62%", "resets ", "█", "░"} {
 		if !strings.Contains(out, want) {
-			t.Errorf("session line missing %q:\n%s", want, out)
+			t.Errorf("session gauges missing %q", want)
+			t.Log(out)
 		}
 	}
 }
@@ -139,8 +140,11 @@ func TestContextShareIsShown(t *testing.T) {
 	model, _ := New(st, nil, nil).Update(tea.WindowSizeMsg{Width: 100, Height: 30})
 	out := ansi.Strip(model.(Model).View())
 
-	if !strings.Contains(out, "Context: 73% used") {
-		t.Errorf("context share not shown:\n%s", out)
+	for _, want := range []string{"Context", "73%"} {
+		if !strings.Contains(out, want) {
+			t.Errorf("context share missing %q", want)
+			t.Log(out)
+		}
 	}
 }
 
@@ -183,12 +187,22 @@ func TestSessionLineSitsAtTheBottom(t *testing.T) {
 		model, _ := New(st, nil, nil).Update(tea.WindowSizeMsg{Width: 100, Height: h})
 		lines := strings.Split(ansi.Strip(model.(Model).View()), "\n")
 
-		body := computeLayout(100, h).BodyHeight
-		last := headerRows + body - 1 // the final row of the mission column
+		// The status block is pinned to the foot of the column rather than
+		// flowing with the content above it, so the last row of the column
+		// that holds anything must belong to it.
+		l := computeLayout(100, h)
+		body := lines[headerRows : headerRows+l.BodyHeight]
 
-		if !strings.Contains(lines[last], "Opus 5") && !strings.Contains(lines[last-1], "Opus 5") {
-			t.Errorf("height %d: session line is not at the bottom of the column:\n%s",
-				h, strings.Join(lines, "\n"))
+		found := false
+		for i := len(body) - 1; i >= 0 && !found; i-- {
+			text := strings.TrimSpace(strings.Trim(body[i], "│╭╮╰╯─ "))
+			if text == "" {
+				continue
+			}
+			found = strings.Contains(text, "%") || strings.Contains(text, "Opus 5")
+			if !found {
+				t.Errorf("height %d: the column ends on %q, not on the session status", h, text)
+			}
 		}
 	}
 }
@@ -212,13 +226,13 @@ func TestBothUsageWindowsAreShown(t *testing.T) {
 	model, _ := New(st, nil, nil).Update(tea.WindowSizeMsg{Width: 120, Height: 30})
 	out := ansi.Strip(model.(Model).View())
 
-	for _, want := range []string{"5h: 62%", "7d: 31%"} {
+	for _, want := range []string{"5h", "62%", "7d", "31%"} {
 		if !strings.Contains(out, want) {
 			t.Errorf("session line missing %q:\n%s", want, out)
 		}
 	}
 	// Shortest window first: it is the one that runs out soonest.
-	if strings.Index(out, "5h: 62%") > strings.Index(out, "7d: 31%") {
+	if strings.Index(out, "5h") > strings.Index(out, "7d") {
 		t.Errorf("weekly window is shown before the five-hour one:\n%s", out)
 	}
 }
@@ -239,7 +253,7 @@ func TestFullContextOffersARestart(t *testing.T) {
 	model, _ := New(st, nil, nil).Update(tea.WindowSizeMsg{Width: 100, Height: 30})
 	out := ansi.Strip(model.(Model).View())
 
-	if !strings.Contains(out, "Context: 86% used") {
+	if !strings.Contains(out, "86%") {
 		t.Errorf("context share not shown:\n%s", out)
 	}
 	if !strings.Contains(out, "ctrl+n") {

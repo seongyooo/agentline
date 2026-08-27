@@ -83,8 +83,13 @@ func (m Model) missionPanel(l Layout) []string {
 	// flowing with the content above them. They are status, like the branch
 	// on the bottom bar, and should not compete with what the agent is doing
 	// for a place in the panel.
-	status := m.sessionLines(l.MissionInner())
-	budget := max(l.BodyHeight-l.FrameRows()-len(status), 0)
+	// What the status block may spend is whatever the panels above it do not
+	// want. Deciding the other way round — pick a status rendering, then fit
+	// the content into what is left — is how a taller status block silently
+	// ate the reply.
+	body := l.BodyHeight - l.FrameRows()
+	status := m.sessionLines(l, body-wantedHeight(sections))
+	budget := max(body-len(status), 0)
 
 	// Clamped, not just padded. When the content cannot be cut down to the
 	// budget by dropping sections, it overruns it, and appending the status
@@ -255,6 +260,15 @@ func fitSections(sections []section, height int) []string {
 		lines = append(lines, s.lines...)
 	}
 	return lines
+}
+
+// wantedHeight is the rows every section would take if none were dropped.
+func wantedHeight(sections []section) int {
+	keep := make([]bool, len(sections))
+	for i := range keep {
+		keep[i] = true
+	}
+	return sectionsHeight(sections, keep)
 }
 
 // sectionsHeight is the rows the kept sections need, blank separators included.
@@ -469,7 +483,8 @@ func activityDetail(a state.Action) string {
 //
 //	Opus 5 | Context: 73% used
 //	5h: 85% (reset 8/27 19:40) | 7d: 39% (reset 8/31 13:00)
-func (m Model) sessionLines(width int) []string {
+func (m Model) sessionLines(l Layout, room int) []string {
+	width := l.MissionInner()
 	s := m.st.Agent.Session
 	if s == nil {
 		return nil
@@ -488,12 +503,21 @@ func (m Model) sessionLines(width int) []string {
 		return nil
 	}
 
-	var lines []string
+	// The words are the fallback, and what the bars are measured against: the
+	// status block is shown either way, so the only question is whether the
+	// rows the bars cost *on top of* the words are rows the panel can spare.
+	// Comparing their whole height instead made the words always win.
+	var words []string
 	if len(head) > 0 {
-		lines = append(lines, contextStyle(s).Render(fitLine(strings.Join(head, " | "), width)))
+		words = append(words, contextStyle(s).Render(fitLine(strings.Join(head, " | "), width)))
 	}
 	if len(limits) > 0 {
-		lines = append(lines, limitStyle(s).Render(fitLine(strings.Join(limits, " | "), width)))
+		words = append(words, limitStyle(s).Render(fitLine(strings.Join(limits, " | "), width)))
+	}
+
+	lines := words
+	if bars := m.gaugeLines(s, l); bars != nil && len(bars)-len(words) <= room {
+		lines = bars
 	}
 
 	// A session AgentLine owns is never compacted, so a context this full

@@ -137,6 +137,11 @@ func (m Model) boxedBody(l Layout, panel []string, now time.Time) []string {
 // tree entry replaces the agent's goal with a description of that entry.
 func (m Model) missionTitle() string {
 	if m.inspecting == nil {
+		// The model belongs to the panel, not to the usage bars underneath
+		// it, and a title with room in it is the cheapest place to say so.
+		if s := m.st.Agent.Session; s != nil && s.Model != "" {
+			return "AGENT · " + modelName(s.Model)
+		}
 		return "AGENT"
 	}
 	if m.inspecting.Dir {
