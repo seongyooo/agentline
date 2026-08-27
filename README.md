@@ -67,6 +67,13 @@ ACTIVITY
 - **Session line** — the model, how full the context is, and the usage windows, written
   the way Claude Code's own status line writes them. Everything on it was reported by
   the agent; nothing is measured or estimated here.
+- **NEEDS YOU** — when the agent stops to ask permission for something, the question
+  takes the top of the column and the terminal rings: a bell plus an OSC 9 desktop
+  notification, which Windows Terminal and iTerm2 raise and everything else ignores.
+  Answer with `y`, `n`, or `a` to also take the mode the agent suggested. This is the
+  only thing AgentLine interrupts you for, and the reason the rest of it can stay quiet.
+  It needs a session AgentLine owns (`--run`); watching one from the outside means the
+  question was never routed here.
 - **ACTIVITY** — a timestamped log of recent observed actions, which ages out.
 - **Prompt bar** — send a prompt to the session AgentLine owns, with the Git branch and
   the keys that apply.
@@ -172,6 +179,7 @@ anything, but the prompt box is inert in that mode.
 | `--source` | `claude` | Which agent: `claude`, `codex`, or `mock` |
 | `--addr` | `127.0.0.1:8787` | Address to receive hooks on |
 | `--mission` | — | Pin `MISSION` instead of deriving it from prompts |
+| `--notify` | — | Command run when the agent needs an answer, for terminals that raise no notification of their own |
 | `--print-hooks` | — | Print the hook settings to install, then exit |
 | `--mock-interval` | `2s` | Delay between mock events |
 
@@ -190,6 +198,8 @@ panel is marked `◂` in its heading.
 | `enter` | Describe the selected file or folder (tree only) |
 | `esc` | Back out of a description or the prompt |
 | `i` | Jump straight to the prompt |
+| `y` `n` | Allow / deny what the agent is blocked on |
+| `a` | Allow it and take the permission mode the agent suggested |
 | `shift+tab` | Cycle the permission mode |
 | `ctrl+n` | Start a fresh session, clearing accumulated context |
 | `q` / `ctrl+c` | Quit |
@@ -305,7 +315,6 @@ assumed.
 
 - **Codex against the real binary** — the adapter is written and covered, but has only
   been run against a stand-in.
-- **Needs You** — a distinct attention state for when the agent is genuinely blocked.
 - **Deeper Git awareness** — beyond the current branch and changed files.
 - **Intelligence layer** — inferring `NEXT` and summarising phases from observed events.
 

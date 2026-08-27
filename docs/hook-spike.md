@@ -72,7 +72,7 @@ The event model and the project tree both use root-relative slash paths, so the
 adapter must relativize against the project root and normalize separators.
 Paths outside the root have to be dropped or marked, not silently mangled.
 
-### 4. "Needs you" is unverified
+### 4. "Needs you" does not arrive over hooks — resolved elsewhere
 
 The plan's §25 attention state depends on `Notification` with
 `notification_type: "permission_prompt"`. In scenario 2 a write was denied for
@@ -80,9 +80,24 @@ lack of permission and **neither `Notification` nor `PermissionRequest`
 fired** — the sequence was `PreToolUse(Write)` then straight to `Stop`.
 
 This is expected: headless mode auto-denies instead of prompting, so there is
-no prompt to notify about. It means the signal is untested, not that it is
-absent. Verifying it requires an interactive session, and §25 should stay
-out of the MVP until it has been observed directly.
+no prompt to notify about.
+
+**Followed up and settled.** Two later runs separated the cause from the
+symptom. With `--permission-mode default` alone the agent still auto-denies and
+emits `system/permission_denied`, with no request to anyone. Adding
+`--permission-prompt-tool stdio` changes it: the agent sends a
+`control_request` with subtype `can_use_tool` and blocks until it is answered.
+Leaving it unanswered produced the CLI's own error, `tool permission stream
+closed before response received`.
+
+So the attention state is real, but it belongs to the session AgentLine owns
+rather than to hooks — an observed session was never asked, and no hook
+carries the question. The wire format and the round trip are pinned in
+`internal/agent/claude/permission.go` and its tests.
+
+One field is not guaranteed: `decision_reason` was present when a path was
+judged sensitive and absent in a plain temp directory, so the UI must read
+well without it.
 
 ## Transport: use HTTP
 
