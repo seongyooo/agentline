@@ -169,7 +169,10 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return m, nil
 
 	case decayMsg:
-		// Nothing to change: returning re-renders, which is the point.
+		// Repetition is partly a fact about time passing: an agent that stops
+		// doing anything new stops spinning without a further event arriving
+		// to say so, so what is derived is recomputed on the clock too.
+		m.st.Refresh(time.Time(msg))
 		return m, decayTick()
 
 	case gitMsg:
@@ -286,6 +289,9 @@ func (m Model) navigating(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	if cmd, handled := m.answering(msg); handled {
 		return m, cmd
 	}
+	if cmd, handled := m.spinning(msg); handled {
+		return m, cmd
+	}
 
 	switch msg.String() {
 	// Esc is reserved for cancelling and closing popups (§22), so it is
@@ -382,14 +388,19 @@ func (m *Model) applyEvent(e events.Event) {
 	if !e.Valid() {
 		return // ignore malformed input without disturbing the selection
 	}
-	blocked := m.st.Agent.Ask != nil
+	blocked, spinning := m.st.Agent.Ask != nil, m.st.Agent.Spin != nil
 	m.st.Apply(e)
 
 	// Raised on the edge, not the state: an ask that is still unanswered is
 	// still on screen, and ringing every time the clock redraws would train
 	// the user to ignore the one time it matters.
-	if !blocked && m.st.Agent.Ask != nil && m.alert != nil {
-		m.alert.Raise(askAlert(m.st.Agent.Ask))
+	if m.alert != nil {
+		switch {
+		case !blocked && m.st.Agent.Ask != nil:
+			m.alert.Raise(askAlert(m.st.Agent.Ask))
+		case !spinning && m.st.Agent.Spin != nil:
+			m.alert.Raise(spinAlert(m.st.Agent.Spin))
+		}
 	}
 
 	if e.Path != "" && m.scanner != nil {

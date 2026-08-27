@@ -16,8 +16,14 @@ import (
 // approver records how a session was answered.
 type approver struct {
 	fakeSender
-	answers []answer
-	modes   []string
+	answers    []answer
+	modes      []string
+	interrupts int
+}
+
+func (a *approver) Interrupt() error {
+	a.interrupts++
+	return nil
 }
 
 type answer struct {

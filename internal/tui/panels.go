@@ -27,6 +27,12 @@ const heavyContext = 120_000
 // header renders the product name and the agent's status on one row.
 func (m Model) header(width int) string {
 	symbol, text, style := statusLabel(m.st.Agent.Status)
+	// Derived, not reported: no adapter can see repetition, so this is not a
+	// status an adapter is allowed to send. It sits on top of WORKING, which
+	// is what the agent genuinely is.
+	if m.st.Agent.Spin != nil {
+		symbol, text, style = "◆", "SPINNING", styleWarn
+	}
 
 	left := styleTitle.Render("AGENTLINE")
 	// How tool calls are being approved changes what the agent will do
@@ -69,6 +75,12 @@ func (m Model) missionPanel(l Layout) []string {
 	// with nothing on screen saying why.
 	if lines := m.askLines(l.MissionInner()); lines != nil {
 		sections = append([]section{{rank: 0, lines: lines}}, sections...)
+	}
+	// Below a question the agent is blocked on, above everything else. It is
+	// not urgent the way a question is — nothing is waiting on it — but it is
+	// the only thing on screen that says the work is going nowhere.
+	if lines := m.spinLines(l.MissionInner()); lines != nil {
+		sections = append([]section{{rank: 1, lines: lines}}, sections...)
 	}
 	// The answer, in a box that scrolls. It sits beside MISSION rather than
 	// replacing it: progress is about the goal, the reply is about the turn.
@@ -839,6 +851,8 @@ func (m Model) inputHint() string {
 	// so the bar says so even though the panel says it too.
 	case m.st.Agent.Ask != nil:
 		return askKeys(m.st.Agent.Ask) + "   q quit"
+	case m.st.Agent.Spin != nil && !m.inputFocused():
+		return "x interrupt   esc dismiss   i redirect   q quit"
 	case m.picker.open:
 		return "← → choose   enter apply   esc cancel"
 	case m.inputFocused() && len(m.slashMatches()) > 0:
