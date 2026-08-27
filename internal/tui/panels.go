@@ -63,7 +63,7 @@ func (m Model) missionPanel(l Layout) []string {
 	now := m.nowLines()
 
 	sections := []section{
-		{rank: 3, lines: m.missionLines(l.MissionInner())},
+		{rank: 4, lines: m.missionLines(l.MissionInner())},
 	}
 	// While a question stands, NEEDS YOU is what the agent is doing. Showing
 	// NOW as well printed the same sentence twice, one line apart.
@@ -82,10 +82,13 @@ func (m Model) missionPanel(l Layout) []string {
 	if lines := m.spinLines(l.MissionInner()); lines != nil {
 		sections = append([]section{{rank: 1, lines: lines}}, sections...)
 	}
-	// The answer, in a box that scrolls. It sits beside MISSION rather than
-	// replacing it: progress is about the goal, the reply is about the turn.
+	// The answer, in a box that scrolls. It outranks MISSION deliberately.
+	// MISSION restates a prompt the user typed themselves; the reply is the
+	// thing they are waiting for, and on any terminal shorter than about
+	// thirty rows there is only room for one of them. Ranked below MISSION,
+	// as it was, the answer to a question simply never appeared.
 	if lines := m.replyLines(); lines != nil {
-		sections = append(sections, section{rank: 6, lines: m.replyPanel(l, lines)})
+		sections = append(sections, section{rank: 3, lines: m.replyPanel(l, lines)})
 	}
 	if l.ShowNext {
 		sections = append(sections, section{rank: 7, lines: []string{styleLabel.Render("NEXT"), valueOrDash(m.st.Agent.Next)}})
@@ -503,7 +506,10 @@ func (m Model) sessionLines(l Layout, room int) []string {
 	}
 
 	var head []string
-	if s.Model != "" {
+	// A framed panel already carries the model in its title. Repeating it a
+	// few rows below was the bars-only rule applied in one place and not the
+	// other.
+	if s.Model != "" && !l.Boxed {
 		head = append(head, modelName(s.Model))
 	}
 	if context := contextLabel(s); context != "" {

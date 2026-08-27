@@ -127,3 +127,51 @@ func TestGaugesAreOrderedByHowSoonTheyRunOut(t *testing.T) {
 		t.Errorf("order = %v, want %v", labels, want)
 	}
 }
+
+// The answer to a question must survive an ordinary terminal.
+//
+// It did not: ranked below MISSION, the reply was the second section dropped
+// when the column was tight, so on anything shorter than about thirty rows a
+// question got a restatement of itself and nothing else. Every size here was
+// broken before, and the earlier version of this file dodged it by only ever
+// checking a terminal tall enough to fit both.
+func TestTheAnswerSurvivesAnOrdinaryTerminal(t *testing.T) {
+	st := state.New("/proj")
+	st.Project.Tree = project.MockTree()
+
+	now := time.Now()
+	st.Apply(events.Event{Type: events.UserPrompt, Message: "what does the valve do?", Timestamp: now, Source: "claude-code"})
+	st.Apply(events.Event{Type: events.TaskProgress, Done: 4, Total: 4, Timestamp: now, Source: "claude-code"})
+	st.Apply(events.Event{Type: events.AgentReply, Timestamp: now, Source: "claude-code",
+		Message: "The valve controls the drainage flow between the rooms."})
+	st.Apply(events.Event{Type: events.SessionInfo, Timestamp: now, Source: "claude-code", Session: gaugeSession()})
+	st.Apply(events.Event{Type: events.AgentStatus, Status: events.StatusWaiting, Timestamp: now, Source: "claude-code"})
+
+	for _, size := range []struct{ w, h int }{{80, 24}, {100, 24}, {100, 28}, {100, 30}, {120, 26}, {160, 40}} {
+		model, _ := New(st, nil, nil).Update(tea.WindowSizeMsg{Width: size.w, Height: size.h})
+		out := ansi.Strip(model.(Model).View())
+
+		if !strings.Contains(out, "drainage flow") {
+			t.Errorf("%dx%d: the answer is not on screen", size.w, size.h)
+			t.Log(out)
+		}
+	}
+}
+
+// The model names the panel when the panel has a name to put it in, and must
+// not also be repeated in the status block underneath.
+func TestTheModelIsNamedOnce(t *testing.T) {
+	st := state.New("/proj")
+	st.Project.Tree = project.MockTree()
+	st.Apply(events.Event{Type: events.SessionInfo, Timestamp: time.Now(), Source: "claude-code", Session: gaugeSession()})
+
+	for _, h := range []int{26, 28, 30, 40} {
+		model, _ := New(st, nil, nil).Update(tea.WindowSizeMsg{Width: 100, Height: h})
+		out := ansi.Strip(model.(Model).View())
+
+		if got := strings.Count(out, "Opus 5"); got != 1 {
+			t.Errorf("100x%d: model named %d times, want once", h, got)
+			t.Log(out)
+		}
+	}
+}
