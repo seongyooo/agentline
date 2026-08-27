@@ -93,6 +93,9 @@ func (s *Stream) start() error {
 		"--input-format", "stream-json",
 		"--output-format", "stream-json",
 		"--verbose",
+		// Without this the agent silently refuses anything the current mode
+		// does not already allow, and there is nothing to ask about.
+		"--permission-prompt-tool", permissionPromptTool,
 	}, s.Args...)
 
 	cmd := exec.Command(bin, args...)
@@ -225,6 +228,12 @@ func (s *Stream) shutdown(ctx context.Context) {
 	s.closed = true
 	stdin, cmd := s.stdin, s.cmd
 	s.mu.Unlock()
+
+	// Answered before stdin closes, or the agent is left waiting on a
+	// question that can no longer be delivered.
+	for _, e := range s.denyOutstanding("AgentLine closed") {
+		s.send(e)
+	}
 
 	if stdin != nil {
 		stdin.Close()

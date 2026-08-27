@@ -42,6 +42,17 @@ const (
 	// It is a count of what the agent said it planned and finished — never
 	// an estimate of how complete the work is.
 	TaskProgress Type = "task_progress"
+
+	// PermissionAsk is the agent stopping to ask whether it may do something
+	// it is not allowed to do unattended. It is the one event that is not a
+	// report of the past: the agent is blocked until it is answered, which is
+	// what makes it the only thing on screen worth interrupting someone for.
+	PermissionAsk Type = "permission_ask"
+
+	// PermissionAnswered closes an ask, whoever closed it — the user, a
+	// timeout, or AgentLine shutting down. Ask carries the ID that was
+	// answered so a late answer to an old ask cannot clear a new one.
+	PermissionAnswered Type = "permission_answered"
 )
 
 // Status is the agent's observable lifecycle state.
@@ -85,6 +96,43 @@ type Event struct {
 
 	// Session carries a SessionInfo report.
 	Session *Session `json:"session,omitempty"`
+
+	// Ask carries a PermissionAsk, or the ID being closed on a
+	// PermissionAnswered.
+	Ask *Ask `json:"ask,omitempty"`
+}
+
+// Ask is a permission request the agent is blocked on.
+//
+// It holds what is needed to decide and nothing else. The provider's raw tool
+// input stays inside the adapter that received it: answering means echoing it
+// back unchanged, which is the adapter's business, and putting a
+// provider-shaped payload in the neutral model is exactly what §13 forbids.
+type Ask struct {
+	// ID is opaque and is what an answer names. Only the adapter that issued
+	// it knows what it means.
+	ID string `json:"id"`
+
+	// Tool is what the agent wants to use, in the provider's own naming, and
+	// Title is that name as the provider would show it to a person.
+	Tool  string `json:"tool,omitempty"`
+	Title string `json:"title,omitempty"`
+
+	// Target is the file or command the tool would act on, when there is one
+	// that can be named.
+	Target string `json:"target,omitempty"`
+
+	// Reason is the agent's own explanation of why it is asking rather than
+	// proceeding. It is shown verbatim: AgentLine does not paraphrase a
+	// safety judgement it did not make.
+	Reason string `json:"reason,omitempty"`
+
+	// Mode is a permission mode the agent suggested would let this and
+	// everything like it through. Empty when it suggested none.
+	Mode string `json:"mode,omitempty"`
+
+	// Allowed records how an ask was answered, on PermissionAnswered.
+	Allowed bool `json:"allowed,omitempty"`
 }
 
 // Session is what the agent reported about the session it is running.
@@ -184,6 +232,10 @@ func (e Event) Valid() bool {
 	case TaskProgress:
 		// A count of nothing says nothing, and Done may not exceed Total.
 		return e.Total > 0 && e.Done >= 0 && e.Done <= e.Total
+	case PermissionAsk, PermissionAnswered:
+		// Without an ID there is no way to answer it, or to know what an
+		// answer closed.
+		return e.Ask != nil && e.Ask.ID != ""
 	}
 	return false
 }

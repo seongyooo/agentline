@@ -23,6 +23,22 @@ type streamEvent struct {
 	PermissionMode string   `json:"permissionMode"`
 	SlashCommands  []string `json:"slash_commands"`
 
+	// RequestID and Request carry a control request the agent sent us. The
+	// only one it sends is a permission prompt.
+	RequestID string `json:"request_id"`
+	Request   *struct {
+		Subtype     string          `json:"subtype"`
+		ToolName    string          `json:"tool_name"`
+		DisplayName string          `json:"display_name"`
+		Input       json.RawMessage `json:"input"`
+		Description string          `json:"description"`
+		Reason      string          `json:"decision_reason"`
+		Suggestions []struct {
+			Type string `json:"type"`
+			Mode string `json:"mode"`
+		} `json:"permission_suggestions"`
+	} `json:"request"`
+
 	// Response carries the outcome of a control request.
 	Response *struct {
 		Subtype   string `json:"subtype"`
@@ -86,6 +102,7 @@ type streamTranslator struct {
 	*translator
 	pending map[string]streamBlock
 	tasks   *taskList
+	asks    *askStore
 
 	// lastSession carries session facts forward, since each report names
 	// only what changed.
@@ -97,6 +114,7 @@ func newStreamTranslator(root string) *streamTranslator {
 		translator: newTranslator(root),
 		pending:    map[string]streamBlock{},
 		tasks:      newTaskList(),
+		asks:       newAskStore(),
 	}
 }
 
@@ -153,6 +171,9 @@ func (t *streamTranslator) translateLine(line []byte) []events.Event {
 				}),
 			}
 		}
+
+	case "control_request":
+		return t.controlRequest(e)
 
 	case "control_response":
 		if e.Response == nil {

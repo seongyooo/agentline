@@ -31,8 +31,14 @@ const (
 	ActionDeleting ActionKind = "deleting"
 	ActionRunning  ActionKind = "running"
 	ActionWaiting  ActionKind = "waiting"
-	ActionDone     ActionKind = "done"
-	ActionFailed   ActionKind = "failed"
+
+	// ActionAsking is the agent stopped on a question. It is deliberately
+	// not ActionWaiting: one means the turn ended and it is your move, the
+	// other means it cannot move until you answer, and a log that spells
+	// them the same way loses the difference.
+	ActionAsking ActionKind = "asking"
+	ActionDone   ActionKind = "done"
+	ActionFailed ActionKind = "failed"
 )
 
 // Progress counts the tasks the agent said it planned and finished.
@@ -107,6 +113,11 @@ type AgentState struct {
 	// says something; AgentLine reports nothing about usage it has not been
 	// told.
 	Session *events.Session
+
+	// Ask is the permission request the agent is blocked on, if any. At most
+	// one is outstanding: the agent stops at the first thing it may not do,
+	// so a queue would be modelling a situation that cannot arise.
+	Ask *events.Ask
 
 	// missionPinned marks a mission the user set explicitly, which observed
 	// prompts must not overwrite.
@@ -270,6 +281,30 @@ func (s *State) Apply(e events.Event) {
 	case events.TaskProgress:
 		s.Agent.Progress = Progress{Done: e.Done, Total: e.Total}
 
+	case events.PermissionAsk:
+		// The agent is stopped until this is answered, which outranks
+		// whatever it was doing a moment ago.
+		s.Agent.Ask = e.Ask
+		s.Agent.Status = events.StatusNeedsInput
+		s.setNow(Action{Kind: ActionAsking, Target: e.Ask.Target, At: e.Timestamp, Summary: askSummary(e.Ask)})
+
+	case events.PermissionAnswered:
+		// Only the ask that is actually outstanding can be closed. An answer
+		// arriving late — a shutdown deny racing a user's yes — must not
+		// clear the next ask, which nobody has answered.
+		if s.Agent.Ask == nil || s.Agent.Ask.ID != e.Ask.ID {
+			return
+		}
+		s.Agent.Ask = nil
+		if e.Ask.Allowed {
+			s.markWorking(e.Timestamp)
+			return
+		}
+		// A refusal is not an error: it is the answer the user gave. The
+		// agent decides what to do next and will say so.
+		s.setNow(Action{Kind: ActionWaiting, At: e.Timestamp})
+		s.Agent.Status = events.StatusWaiting
+
 	case events.FilePending:
 		// Claimed, not done: the write may still be refused.
 		s.Project.PendingByPath[e.Path] = e.Timestamp
@@ -398,4 +433,25 @@ func (s *State) LevelAt(path string, now time.Time) ActivityLevel {
 	default:
 		return Inactive
 	}
+}
+
+// askSummary is the one line that says what is being asked for.
+//
+// It reads as a request rather than a report — "Write probe.txt?" — because
+// the panel it lands in normally describes what the agent is doing, and this
+// is the one case where it is instead waiting on an answer.
+func askSummary(a *events.Ask) string {
+	name := a.Title
+	if name == "" {
+		name = a.Tool
+	}
+	switch {
+	case name == "" && a.Target == "":
+		return "Permission needed"
+	case a.Target == "":
+		return name + "?"
+	case name == "":
+		return a.Target + "?"
+	}
+	return name + " " + a.Target + "?"
 }
