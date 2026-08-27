@@ -45,6 +45,11 @@ func (m Model) missionPanel(l Layout) []string {
 		{rank: 3, lines: []string{styleLabel.Render("MISSION"), valueOrDash(m.st.Agent.Mission)}},
 		{rank: 2, lines: now},
 	}
+	// A line of the answer, so the user can tell the turn landed. Never the
+	// conversation: AgentView is not a transcript viewer (§18).
+	if reply := m.st.Agent.Reply; reply != "" {
+		sections = append(sections, section{rank: 6, lines: []string{styleLabel.Render("REPLY"), reply}})
+	}
 	if l.ShowNext {
 		sections = append(sections, section{rank: 7, lines: []string{styleLabel.Render("NEXT"), valueOrDash(m.st.Agent.Next)}})
 	}
@@ -234,18 +239,53 @@ func displayTarget(a state.Action) string {
 // inputBar renders the prompt affordance. Not yet wired to an agent; it is
 // shown dimmed so it does not read as an active input.
 func (m Model) inputBar(width int) string {
-	prompt := styleDim.Render("> Ask Claude Code...")
-
-	hint := styleDim.Render("q quit")
+	hint := styleDim.Render(m.inputHint())
 	if branch := m.branchLabel(); branch != "" {
 		hint = styleDim.Render(branch+"   ") + hint
 	}
+
+	prompt := m.promptField(width - ansi.StringWidth(hint) - 2)
 
 	gap := width - ansi.StringWidth(prompt) - ansi.StringWidth(hint)
 	if gap < 1 {
 		return fitLine(prompt, width)
 	}
 	return prompt + strings.Repeat(" ", gap) + hint
+}
+
+// promptField renders the prompt itself: editable when AgentView owns the
+// session, dimmed and inert when it is only watching one.
+func (m Model) promptField(width int) string {
+	if !m.canSend() {
+		return styleDim.Render("> Ask Claude Code...")
+	}
+	if m.sendErr != nil {
+		return styleError.Render("> " + firstLine(m.sendErr.Error()))
+	}
+
+	field := m.input
+	field.Width = max(width-4, 10)
+	return field.View()
+}
+
+// inputHint says what the keys do, which changes with focus.
+func (m Model) inputHint() string {
+	switch {
+	case !m.canSend():
+		return "q quit"
+	case m.inputFocused:
+		return "enter send   esc cancel"
+	default:
+		return "tab prompt   q quit"
+	}
+}
+
+// firstLine trims a message to its first line for a one-line bar.
+func firstLine(s string) string {
+	if i := strings.IndexAny(s, "\r\n"); i >= 0 {
+		s = s[:i]
+	}
+	return strings.TrimSpace(s)
 }
 
 // branchLabel names the current branch, marked with an asterisk when the

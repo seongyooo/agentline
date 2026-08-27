@@ -7,6 +7,7 @@ import (
 	"context"
 	"time"
 
+	"github.com/charmbracelet/bubbles/textinput"
 	tea "github.com/charmbracelet/bubbletea"
 
 	"github.com/seonl/agentview/internal/events"
@@ -60,6 +61,14 @@ type Model struct {
 	// looking like an idle agent.
 	hint string
 
+	// sender is set only when AgentView owns the session; observing one
+	// leaves the prompt field inert.
+	sender Sender
+
+	input        textinput.Model
+	inputFocused bool
+	sendErr      error
+
 	tree   treeView
 	width  int
 	height int
@@ -80,12 +89,24 @@ func (m Model) observedActivity() bool {
 // scanner may be nil, in which case directories cannot be expanded beyond what
 // is already loaded. stream may be nil, in which case the UI is static.
 func New(st *state.State, scanner *project.Scanner, stream <-chan events.Event) Model {
-	return Model{st: st, scanner: scanner, stream: stream}
+	return Model{st: st, scanner: scanner, stream: stream, input: newInput()}
 }
 
 // WithHint sets the message shown until the first event arrives.
 func (m Model) WithHint(hint string) Model {
 	m.hint = hint
+	return m
+}
+
+// WithStream attaches the event source the UI listens to.
+func (m Model) WithStream(stream <-chan events.Event) Model {
+	m.stream = stream
+	return m
+}
+
+// WithSender makes the prompt field live, submitting to the given session.
+func (m Model) WithSender(sender Sender) Model {
+	m.sender = sender
 	return m
 }
 
@@ -116,25 +137,63 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		// the next look instead of stacking up overlapping subprocesses.
 		return m, gitTick(m.st.Project.Root)
 
+	case promptSentMsg:
+		// A failed send is shown in the prompt bar rather than swallowed.
+		m.sendErr = msg.err
+		return m, nil
+
 	case tea.KeyMsg:
-		switch msg.String() {
-		// Esc is reserved for cancelling and closing popups (§22), so it is
-		// deliberately not a quit key.
-		case "q", "ctrl+c":
-			return m, tea.Quit
-		case "up":
-			m.moveCursor(-1)
-		case "down":
-			m.moveCursor(1)
-		case "right":
-			m.expand()
-		case "left":
-			m.collapse()
-		case "enter":
-			m.toggle()
-		default:
-			return m, nil
+		if m.inputFocused {
+			return m.typing(msg)
 		}
+		return m.navigating(msg)
+	}
+
+	m.syncScroll()
+	return m, nil
+}
+
+// typing routes a key to the prompt field.
+//
+// While typing, only the keys that leave the field are intercepted: everything
+// else is text, so "q" must not quit and the arrows must move the cursor
+// rather than the tree.
+func (m Model) typing(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
+	switch msg.String() {
+	case "ctrl+c":
+		return m, tea.Quit
+	case "enter":
+		return m, m.submitPrompt()
+	case "esc", "tab":
+		m.blurInput()
+		return m, nil
+	}
+
+	m.sendErr = nil // the user is composing again
+	return m, m.updateInput(msg)
+}
+
+// navigating routes a key to the project tree.
+func (m Model) navigating(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
+	switch msg.String() {
+	// Esc is reserved for cancelling and closing popups (§22), so it is
+	// deliberately not a quit key.
+	case "q", "ctrl+c":
+		return m, tea.Quit
+	case "tab", "i":
+		return m, m.focusInput()
+	case "up":
+		m.moveCursor(-1)
+	case "down":
+		m.moveCursor(1)
+	case "right":
+		m.expand()
+	case "left":
+		m.collapse()
+	case "enter":
+		m.toggle()
+	default:
+		return m, nil
 	}
 
 	m.syncScroll()
