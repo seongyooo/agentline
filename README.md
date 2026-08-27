@@ -26,32 +26,32 @@ A real frame, rendered at 100×28 (colour stripped):
 
 ```text
 AGENTLINE   asks first                                                             ● CLAUDE  WORKING
-───────────────────────────────────────┬────────────────────────────────────────────────────────────
-PROJECT ◂                              │ MISSION                                                    
-                                       │ Add Git awareness to the header                            
-▾ Assets/                            ● │ ████████████░░░░░░░░░░░░ 2/4                               
-├─ ▾ Scripts/                        ● │                                                            
-│  ├─ ▾ Core/                          │ NOW                                                        
-│  ├─ ▾ Player/                        │ Editing   3s                                               
-│  ├─ ▾ Puzzle/                      ● │ .../Puzzle/DrainSystem.cs                                  
-│  │  ├─   Valve.cs                    │                                                            
-│  │  └─   DrainSystem.cs            ● │ NEXT                                                       
-│  └─ ▾ Rooms/                       ◐ │ —                                                          
-│     └─   WaterRoom.cs              ◐ │                                                            
-├─ ▾ Prefabs/                          │                                                            
-├─ ▾ Scenes/                           │ Opus 5 | Context: 31% used                                 
-└─ ▾ Materials/                        │ 5h: 62% (reset 8/27 19:40) | 7d: 28% (reset 8/31 13:00)    
-───────────────────────────────────────┴────────────────────────────────────────────────────────────
-ACTIVITY                                                                                            
-20:53  Working                                                                                      
-20:54  Reading   .../Rooms/WaterRoom.cs                                                             
-20:55  Running   Run the git package tests                                                          
-20:56  Done      Run the git package tests                                                          
-20:57  Editing   .../Puzzle/DrainSystem.cs                                                          
                                                                                                     
+╭─ PROJECT ◂ ────────────────────────╮ ╭─ AGENT ───────────────────────────────────────────────────╮
+│ ▾ Assets/                        ● │ │ MISSION                                                   │
+│ ├─ ▾ Scripts/                    ● │ │ Add Git awareness to the header                           │
+│ │  ├─ ▾ Core/                      │ │ ████████████░░░░░░░░░░░░ 2/4                              │
+│ │  ├─ ▾ Player/                    │ │                                                           │
+│ │  ├─ ▾ Puzzle/                  ● │ │ NOW                                                       │
+│ │  │  ├─   Valve.cs              · │ │ Editing   3s                                              │
+│ │  │  └─   DrainSystem.cs        ● │ │ .../Puzzle/DrainSystem.cs                                 │
+│ │  └─ ▾ Rooms/                   ◐ │ │                                                           │
+│ │     └─   WaterRoom.cs          ◐ │ │                                                           │
+│ ├─ ▾ Prefabs/                      │ │ Opus 5 | Context: 31% used                                │
+│ ├─ ▾ Scenes/                       │ │ 5h: 62% (reset 8/27 19:40) | 7d: 28% (reset 8/31 13:00)   │
+╰───────────────────────────── 1/12 ─╯ ╰───────────────────────────────────────────────────────────╯
+╭─ ACTIVITY ───────────────────────────────────────────────────────────────────────────────────────╮
+│ 00:09  Reading   .../Puzzle/Valve.cs                                                             │
+│ 00:09  Editing   .../Rooms/WaterRoom.cs                                                          │
+│ 00:09  Running   git status --porcelain                                                          │
+│ 00:09  Reading   .../Player/Move.cs                                                              │
+│ 00:11  Reading   .../Rooms/WaterRoom.cs                                                          │
+│ 00:12  Running   Run the git package tests                                                       │
+│ 00:13  Done      Run the git package tests                                                       │
+│ 00:14  Editing   .../Puzzle/DrainSystem.cs                                                       │
+╰─────────────────────────────────────────────────────────────────────────────────────── 43-50/50 ─╯
+PULSE  █▆▆█▆▆█▆▆█▆▁     ▄▆█▆▆█▆▆█▆▆█▆▆█    ▄▆█▆▆█▆▆█▆▆█▆▆▆      ▁  ▁  ▁ ▁                23:52 → now
                                                                                                     
-                                                                                                    
-────────────────────────────────────────────────────────────────────────────────────────────────────
 > Ask claude...                                                   enter inspect   tab focus   q quit
 ```
 
@@ -75,6 +75,11 @@ ACTIVITY
   It needs a session AgentLine owns (`--run`); watching one from the outside means the
   question was never routed here.
 - **ACTIVITY** — a timestamped log of recent observed actions, which ages out.
+- **PULSE** — the whole session on one row: column height is how many actions landed in
+  that slice of time, colour is the most notable kind in it, and gaps are gaps. It is
+  counted separately from the log, so it still shows work the log has already aged out.
+  This is what a scrollback cannot be — twenty minutes away and a glance says where the
+  work happened, where it went quiet, and where it broke.
 - **Prompt bar** — send a prompt to the session AgentLine owns, with the Git branch and
   the keys that apply.
 
@@ -315,6 +320,7 @@ assumed.
 
 - **Codex against the real binary** — the adapter is written and covered, but has only
   been run against a stand-in.
+- **Since you looked away** — the net effect of a stretch of work, not just its shape.
 - **Deeper Git awareness** — beyond the current branch and changed files.
 - **Intelligence layer** — inferring `NEXT` and summarising phases from observed events.
 

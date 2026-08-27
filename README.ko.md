@@ -25,32 +25,32 @@ AI 코딩 에이전트를 지켜보는 터미널 UI입니다.
 
 ```text
 AGENTLINE   asks first                                                             ● CLAUDE  WORKING
-───────────────────────────────────────┬────────────────────────────────────────────────────────────
-PROJECT ◂                              │ MISSION                                                    
-                                       │ Add Git awareness to the header                            
-▾ Assets/                            ● │ ████████████░░░░░░░░░░░░ 2/4                               
-├─ ▾ Scripts/                        ● │                                                            
-│  ├─ ▾ Core/                          │ NOW                                                        
-│  ├─ ▾ Player/                        │ Editing   3s                                               
-│  ├─ ▾ Puzzle/                      ● │ .../Puzzle/DrainSystem.cs                                  
-│  │  ├─   Valve.cs                    │                                                            
-│  │  └─   DrainSystem.cs            ● │ NEXT                                                       
-│  └─ ▾ Rooms/                       ◐ │ —                                                          
-│     └─   WaterRoom.cs              ◐ │                                                            
-├─ ▾ Prefabs/                          │                                                            
-├─ ▾ Scenes/                           │ Opus 5 | Context: 31% used                                 
-└─ ▾ Materials/                        │ 5h: 62% (reset 8/27 19:40) | 7d: 28% (reset 8/31 13:00)    
-───────────────────────────────────────┴────────────────────────────────────────────────────────────
-ACTIVITY                                                                                            
-20:53  Working                                                                                      
-20:54  Reading   .../Rooms/WaterRoom.cs                                                             
-20:55  Running   Run the git package tests                                                          
-20:56  Done      Run the git package tests                                                          
-20:57  Editing   .../Puzzle/DrainSystem.cs                                                          
                                                                                                     
+╭─ PROJECT ◂ ────────────────────────╮ ╭─ AGENT ───────────────────────────────────────────────────╮
+│ ▾ Assets/                        ● │ │ MISSION                                                   │
+│ ├─ ▾ Scripts/                    ● │ │ Add Git awareness to the header                           │
+│ │  ├─ ▾ Core/                      │ │ ████████████░░░░░░░░░░░░ 2/4                              │
+│ │  ├─ ▾ Player/                    │ │                                                           │
+│ │  ├─ ▾ Puzzle/                  ● │ │ NOW                                                       │
+│ │  │  ├─   Valve.cs              · │ │ Editing   3s                                              │
+│ │  │  └─   DrainSystem.cs        ● │ │ .../Puzzle/DrainSystem.cs                                 │
+│ │  └─ ▾ Rooms/                   ◐ │ │                                                           │
+│ │     └─   WaterRoom.cs          ◐ │ │                                                           │
+│ ├─ ▾ Prefabs/                      │ │ Opus 5 | Context: 31% used                                │
+│ ├─ ▾ Scenes/                       │ │ 5h: 62% (reset 8/27 19:40) | 7d: 28% (reset 8/31 13:00)   │
+╰───────────────────────────── 1/12 ─╯ ╰───────────────────────────────────────────────────────────╯
+╭─ ACTIVITY ───────────────────────────────────────────────────────────────────────────────────────╮
+│ 00:09  Reading   .../Puzzle/Valve.cs                                                             │
+│ 00:09  Editing   .../Rooms/WaterRoom.cs                                                          │
+│ 00:09  Running   git status --porcelain                                                          │
+│ 00:09  Reading   .../Player/Move.cs                                                              │
+│ 00:11  Reading   .../Rooms/WaterRoom.cs                                                          │
+│ 00:12  Running   Run the git package tests                                                       │
+│ 00:13  Done      Run the git package tests                                                       │
+│ 00:14  Editing   .../Puzzle/DrainSystem.cs                                                       │
+╰─────────────────────────────────────────────────────────────────────────────────────── 43-50/50 ─╯
+PULSE  █▆▆█▆▆█▆▆█▆▁     ▄▆█▆▆█▆▆█▆▆█▆▆█    ▄▆█▆▆█▆▆█▆▆█▆▆▆      ▁  ▁  ▁ ▁                23:52 → now
                                                                                                     
-                                                                                                    
-────────────────────────────────────────────────────────────────────────────────────────────────────
 > Ask claude...                                                   enter inspect   tab focus   q quit
 ```
 
@@ -60,6 +60,7 @@ ACTIVITY
 - **세션 줄** — 모델, 컨텍스트 사용률, 사용량 한도. Claude Code 자체 상태줄과 같은 형식으로 적습니다. 전부 에이전트가 보고한 값이고, 여기서 측정하거나 추정한 것은 없습니다.
 - **NEEDS YOU** — 에이전트가 권한을 물으며 멈추면 그 질문이 칸 맨 위를 차지하고 터미널이 울립니다. 벨과 OSC 9 데스크톱 알림을 함께 보내며, Windows Terminal과 iTerm2는 실제 알림을 띄우고 모르는 터미널은 조용히 무시합니다. `y` · `n`으로 답하고, `a`는 허용과 동시에 에이전트가 제안한 모드로 바꿉니다. AgentLine이 사용자를 방해하는 유일한 경우이고, 나머지가 조용할 수 있는 이유이기도 합니다. AgentLine이 소유한 세션(`--run`)에서만 됩니다. 밖에서 지켜보기만 하면 질문이 애초에 이쪽으로 오지 않습니다.
 - **ACTIVITY** — 최근 활동 기록. 시간이 지나면 흐려집니다.
+- **PULSE** — 세션 전체를 한 줄로. 막대 높이는 그 시간 조각에 떨어진 행동 수, 색은 그중 가장 눈에 띄는 종류, 빈칸은 실제로 조용했던 구간입니다. 로그와 별도로 세기 때문에 로그에서 이미 밀려난 작업도 남아 있습니다. 스크롤백이 될 수 없는 화면이 이겁니다 — 20분 자리 비우고 와서 한 번 훑으면 작업이 몰린 곳, 멈춘 곳, 깨진 곳이 보입니다.
 - **입력줄** — AgentLine이 소유한 세션에 프롬프트를 보냅니다. Git 브랜치와 지금 쓸 수 있는 키도 함께 표시됩니다.
 
 터미널 크기에 따라 접힙니다. 좁아지면 한 칼럼으로 바뀌고, `NOW`를 자르기 전에 우선순위가 낮은 것(`NEXT`, 그다음 `REPLY`)부터 버립니다.
@@ -258,6 +259,7 @@ go test ./...
 ## 앞으로
 
 - **실제 Codex 바이너리 검증** — 어댑터는 작성했고 테스트도 있지만 대역으로만 돌려 봤습니다.
+- **자리 비운 사이 요약** — 모양뿐 아니라 순효과까지.
 - **Git 정보 확장** — 지금의 브랜치와 변경 파일 너머.
 - **지능 레이어** — 관측된 이벤트에서 `NEXT`를 추론하고 단계를 요약.
 
