@@ -46,6 +46,13 @@ try {
     Expand-Archive -Path $archive -DestinationPath $temp -Force
     New-Item -ItemType Directory -Force -Path $bindir | Out-Null
     Copy-Item (Join-Path $temp 'agentline.exe') (Join-Path $bindir 'agentline.exe') -Force
+
+    # The stand-in agent, so AgentLine can be tried without starting a session
+    # that costs money. Optional on purpose: a release without it still installs.
+    $standin = Join-Path $temp 'fakeagent.exe'
+    if (Test-Path $standin) {
+        Copy-Item $standin (Join-Path $bindir 'fakeagent.exe') -Force
+    }
 }
 finally {
     Remove-Item $temp -Recurse -Force -ErrorAction SilentlyContinue

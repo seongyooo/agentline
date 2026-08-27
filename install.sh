@@ -82,6 +82,13 @@ destination() {
 	echo "$HOME/.local/bin"
 }
 
+# place installs one extracted binary, falling back to cp where install(1) is
+# fussy about the destination.
+place() {
+	install -m 0755 "$tmp/$1" "$bindir/$1" 2>/dev/null ||
+		{ cp "$tmp/$1" "$bindir/$1" && chmod 0755 "$bindir/$1"; }
+}
+
 main() {
 	target=$(platform)
 	tag=$(resolve)
@@ -95,10 +102,14 @@ main() {
 
 	echo "installing agentline $tag ($target)"
 	download "$url" >"$tmp/agentline.tar.gz" || fail "could not download $url"
-	tar -xzf "$tmp/agentline.tar.gz" -C "$tmp" agentline
+	tar -xzf "$tmp/agentline.tar.gz" -C "$tmp"
 
-	install -m 0755 "$tmp/agentline" "$bindir/agentline" 2>/dev/null ||
-		{ cp "$tmp/agentline" "$bindir/agentline" && chmod 0755 "$bindir/agentline"; }
+	place agentline
+	# The stand-in agent, so AgentLine can be tried without starting a session
+	# that costs money. Optional on purpose: a release without it still installs.
+	if [ -f "$tmp/fakeagent" ]; then
+		place fakeagent
+	fi
 
 	echo "installed $bindir/agentline"
 
