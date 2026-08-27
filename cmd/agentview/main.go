@@ -32,6 +32,7 @@ func run() error {
 	rootFlag := flag.String("root", "", "project root (default: detected from the working directory)")
 	mission := flag.String("mission", "", "pin the MISSION panel to this goal instead of deriving it from the agent's prompts")
 	run := flag.Bool("run", false, "launch and own a Claude Code session, making the prompt box live")
+	agentBin := flag.String("agent", "", "executable to run instead of claude, for trying the UI without a real session")
 	sourceName := flag.String("source", "claude", `event source when not using --run: "claude" or "mock"`)
 	addr := flag.String("addr", claude.DefaultAddr, "address to receive Claude Code hooks on")
 	interval := flag.Duration("mock-interval", 2*time.Second, "delay between mock events")
@@ -74,10 +75,15 @@ func run() error {
 	if *run {
 		// AgentView owns the session, so the prompt box can submit to it.
 		session := claude.NewStream(root)
+		session.Bin = *agentBin
+
 		stream, err = session.Events(ctx)
 		if err == nil {
 			model = model.WithSender(session)
-			hint = "Session ready — press tab to send a prompt"
+			hint = "Session ready — press i to write a prompt"
+			if *agentBin != "" {
+				hint = fmt.Sprintf("Running %s, not a real agent — press i to write a prompt", *agentBin)
+			}
 		}
 	} else {
 		stream, err = startSource(ctx, *sourceName, sourceConfig{
