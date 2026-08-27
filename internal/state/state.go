@@ -231,7 +231,9 @@ func (s *State) Apply(e events.Event) {
 			kind = ActionFailed
 			s.Agent.Status = events.StatusError
 		}
-		s.setNow(Action{Kind: kind, Target: e.Command, At: e.Timestamp})
+		// Carried through, or the same command reads one way while it runs
+		// and another when it finishes.
+		s.setNow(Action{Kind: kind, Target: e.Command, At: e.Timestamp, Summary: e.Message})
 
 	case events.AgentStatus:
 		s.Agent.Status = e.Status

@@ -111,6 +111,26 @@ func TestWorkingStatusKeepsSpecificAction(t *testing.T) {
 	}
 }
 
+// A command must read the same way while it runs and when it finishes, or the
+// activity log describes the same command twice in two different vocabularies.
+func TestCommandKeepsItsDescriptionWhenItEnds(t *testing.T) {
+	now := time.Now()
+	s := New("/proj")
+
+	start := ev(events.CommandStart, now)
+	start.Command = "go test ./internal/git"
+	start.Message = "Run the git package tests"
+	s.Apply(start)
+
+	end := ev(events.CommandEnd, now)
+	end.Command, end.Message = start.Command, start.Message
+	s.Apply(end)
+
+	if got := s.Agent.Now.Summary; got != start.Message {
+		t.Errorf("Summary = %q, want %q", got, start.Message)
+	}
+}
+
 // A finished command must not keep reading as running.
 func TestCommandEndMovesNowOffRunning(t *testing.T) {
 	now := time.Now()
