@@ -114,6 +114,10 @@ type AgentState struct {
 	// told.
 	Session *events.Session
 
+	// Pulse is the session's shape over time, counted from the same actions
+	// the log shows and kept for far longer than the log keeps them.
+	Pulse Pulse
+
 	// Ask is the permission request the agent is blocked on, if any. At most
 	// one is outstanding: the agent stops at the first thing it may not do,
 	// so a queue would be modelling a situation that cannot arise.
@@ -388,6 +392,7 @@ func (s *State) setNow(a Action) {
 }
 
 func (s *State) push(a Action) {
+	s.Agent.Pulse.Add(a.Kind, a.At)
 	s.Agent.Activity = append(s.Agent.Activity, a)
 	if n := len(s.Agent.Activity); n > maxActivity {
 		s.Agent.Activity = s.Agent.Activity[n-maxActivity:]
