@@ -220,6 +220,28 @@ func TestDetachedHead(t *testing.T) {
 	}
 }
 
+// Git reports the real path of a repository, while the directory AgentLine is
+// given may be reached by another name — a symlink, or a Windows short name.
+// If the two are compared as written, every file lands outside the project and
+// nothing is reported at all.
+func TestRepositoryReachedThroughASymlink(t *testing.T) {
+	real := repo(t)
+	write(t, real, "committed.txt", "changed")
+
+	link := filepath.Join(t.TempDir(), "link")
+	if err := os.Symlink(real, link); err != nil {
+		t.Skipf("symlinks unavailable: %v", err)
+	}
+
+	got := Load(ctx(t), link)
+	if !got.Dirty() {
+		t.Fatalf("nothing reported through the symlink: %+v", got)
+	}
+	if got.Of("committed.txt") != Modified {
+		t.Errorf("Of(committed.txt) = %v, want Modified", got.Of("committed.txt"))
+	}
+}
+
 // Not being a repository is normal, not a failure.
 func TestNonRepositoryIsEmptyNotAnError(t *testing.T) {
 	got := Load(ctx(t), t.TempDir())

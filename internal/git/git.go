@@ -76,7 +76,24 @@ func Load(ctx context.Context, root string) Status {
 	if err != nil {
 		return Status{}
 	}
-	return parse(out, topLevel, root)
+	return parse(out, canonical(topLevel), canonical(root))
+}
+
+// canonical resolves a path the way Git reports one.
+//
+// Git answers with the real path, while the directory AgentLine was given may
+// be reached by another name: /var is a link to /private/var on macOS, and
+// Windows hands out 8.3 short names for temporary directories. Comparing the
+// two forms textually puts every file outside the project and drops the lot,
+// so both are resolved to the same form before they are compared.
+func canonical(path string) string {
+	if resolved, err := filepath.EvalSymlinks(path); err == nil {
+		path = resolved
+	}
+	if abs, err := filepath.Abs(path); err == nil {
+		return abs
+	}
+	return path
 }
 
 // run executes a git command in root and returns its stdout.
