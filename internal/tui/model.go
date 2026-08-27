@@ -144,7 +144,14 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.width, m.height = msg.Width, msg.Height
 
 	case eventMsg:
-		m.applyEvent(events.Event(msg))
+		event := events.Event(msg)
+		m.applyEvent(event)
+
+		// A turn just ended, so how full the context is has changed. Asking
+		// now keeps the figure current without polling for it.
+		if event.Type == events.AgentStatus && event.Status == events.StatusWaiting {
+			return m, tea.Batch(waitForEvent(m.stream), m.askForContextUsage())
+		}
 		return m, waitForEvent(m.stream)
 
 	case sourceClosedMsg:

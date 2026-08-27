@@ -23,6 +23,22 @@ type Sender interface {
 type Controller interface {
 	SetPermissionMode(mode string) error
 	SetModel(model string) error
+	RequestContextUsage() error
+}
+
+// askForContextUsage asks how full the context is, which only the agent can
+// answer: it knows the window it is measuring against.
+func (m Model) askForContextUsage() tea.Cmd {
+	controller, ok := m.sender.(Controller)
+	if !ok {
+		return nil
+	}
+	return func() tea.Msg {
+		// A failure here means one figure is missing from a status line, so
+		// it is not worth interrupting anything over.
+		_ = controller.RequestContextUsage()
+		return nil
+	}
 }
 
 // modelChangedMsg reports the outcome of a model change.

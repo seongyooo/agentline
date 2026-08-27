@@ -73,13 +73,32 @@ func TestStandInAgentDrivesTheWholeUI(t *testing.T) {
 		}
 	}
 
+	// How full the context is is asked for once the turn ends, so the reply
+	// arrives after it. Draining lets it land before anything is asserted.
+	if cmd := m.askForContextUsage(); cmd != nil {
+		cmd()
+	}
+	deadline = time.After(10 * time.Second)
+	for m.st.Agent.Session == nil || m.st.Agent.Session.ContextWindow == 0 {
+		select {
+		case e, ok := <-stream:
+			if !ok {
+				t.Fatal("stream closed before the context usage arrived")
+			}
+			next, _ := m.Update(eventMsg(e))
+			m = next.(Model)
+		case <-deadline:
+			t.Fatal("the stand-in never reported how full the context is")
+		}
+	}
+
 	out := ansi.Strip(m.View())
 	for _, want := range []string{
 		"write the readme", // the mission, from the prompt
 		"fakeagent",        // the reply, saying plainly what produced it
-		"ctx ",             // usage, so a session's cost is visible
-		"5h ",              // the rate limit windows
-		"week ",
+		"Context:",         // how full the context is, which is what costs
+		"5h:",              // the usage windows, both of them
+		"7d:",
 	} {
 		if !strings.Contains(out, want) {
 			t.Errorf("interface missing %q:\n%s", want, out)

@@ -18,6 +18,7 @@ const (
 	controlSetPermissionMode = "set_permission_mode"
 	controlSetModel          = "set_model"
 	controlInterrupt         = "interrupt"
+	controlContextUsage      = "get_context_usage"
 )
 
 // PermissionModes are the modes a session can be switched between.
@@ -46,6 +47,15 @@ func (s *Stream) SetModel(model string) error {
 // Interrupt stops what the agent is currently doing.
 func (s *Stream) Interrupt() error {
 	return s.control(map[string]any{"subtype": controlInterrupt})
+}
+
+// RequestContextUsage asks how full the context window is.
+//
+// The share used is what says whether a session is getting expensive, and only
+// the agent knows the window it is measuring against, so it is asked rather
+// than worked out from a token count and a guess at the limit.
+func (s *Stream) RequestContextUsage() error {
+	return s.control(map[string]any{"subtype": controlContextUsage})
 }
 
 // control sends one control request.

@@ -111,6 +111,14 @@ type Session struct {
 	// is zero when it reported nothing.
 	CostUSD float64 `json:"cost_usd,omitempty"`
 
+	// ContextWindow, ContextUsed and ContextPercent are how full the
+	// context is, as the agent measures it. Only the agent knows the window
+	// it is working against, so the share is asked for rather than worked
+	// out from a token count and a guess at the limit.
+	ContextWindow  int     `json:"context_window,omitempty"`
+	ContextUsed    int     `json:"context_used,omitempty"`
+	ContextPercent float64 `json:"context_percent,omitempty"`
+
 	// Capabilities are what this session announced it supports.
 	Capabilities Capabilities `json:"capabilities,omitzero"`
 }

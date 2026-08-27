@@ -112,6 +112,24 @@ func (a *agent) control(id, subtype, mode, model string) {
 			return
 		}
 
+	case "get_context_usage":
+		// Answered from the same running total the usage report uses, so
+		// the two figures agree the way a real session's do.
+		const window = 200_000
+		emit(map[string]any{
+			"type": "control_response",
+			"response": map[string]any{
+				"subtype": "success", "request_id": id,
+				"response": map[string]any{
+					"context_window_size":  window,
+					"current_usage":        a.tokens,
+					"used_percentage":      minFloat(float64(a.tokens)/window, 1),
+					"remaining_percentage": maxFloat(1-float64(a.tokens)/window, 0),
+				},
+			},
+		})
+		return
+
 	case "interrupt":
 		// Nothing is running long enough here to interrupt.
 	}
@@ -398,6 +416,13 @@ func toolID() string { return fmt.Sprintf("fake-%d", rand.Int63()) }
 
 func minFloat(a, b float64) float64 {
 	if a < b {
+		return a
+	}
+	return b
+}
+
+func maxFloat(a, b float64) float64 {
+	if a > b {
 		return a
 	}
 	return b

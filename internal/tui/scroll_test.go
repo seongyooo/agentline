@@ -141,6 +141,59 @@ func TestActivityLogCanBeScrolled(t *testing.T) {
 	}
 }
 
+// Tabbing round must come back to the tree, and say so when it does. A
+// highlight that looks the same whether or not the keys reach the tree is
+// indistinguishable from tab having done nothing.
+func TestTabReturnsToTheTreeAndSaysSo(t *testing.T) {
+	m, _ := sendable(t)
+
+	if m.focus != focusTree {
+		t.Fatalf("focus starts at %v, want the tree", m.focus)
+	}
+	if !strings.Contains(ansi.Strip(m.View()), "PROJECT ◂") {
+		t.Errorf("the tree does not show it has focus:\n%s", ansi.Strip(m.View()))
+	}
+
+	// Round the cycle and back.
+	var reached bool
+	for i := 0; i < 6; i++ {
+		m, _ = key(m, tea.KeyTab)
+		if m.focus == focusTree {
+			reached = true
+			break
+		}
+	}
+	if !reached {
+		t.Fatal("tabbing never came back to the tree")
+	}
+	if !strings.Contains(ansi.Strip(m.View()), "PROJECT ◂") {
+		t.Errorf("the tree does not show it has focus after tabbing back:\n%s", ansi.Strip(m.View()))
+	}
+
+	// And the keys really do reach it.
+	before := m.tree.cursor
+	m, _ = key(m, tea.KeyDown)
+	if m.tree.cursor == before {
+		t.Error("the arrow keys did not reach the tree")
+	}
+}
+
+// With focus elsewhere the tree must not look like the keys still reach it.
+func TestTreeStopsLookingSelectedWhenFocusLeaves(t *testing.T) {
+	m, _ := sendable(t)
+	focused := m.treePanel(computeLayout(100, 30), time.Now())
+
+	m = focusPromptKey(m)
+	blurred := m.treePanel(computeLayout(100, 30), time.Now())
+
+	if strings.Join(focused, "\n") == strings.Join(blurred, "\n") {
+		t.Error("the tree looks identical whether or not it has focus")
+	}
+	if strings.Contains(ansi.Strip(strings.Join(blurred, "\n")), "PROJECT ◂") {
+		t.Error("the tree still claims focus after it moved away")
+	}
+}
+
 // A click moves focus, so the panels are reachable without tabbing to them.
 func TestClickMovesFocus(t *testing.T) {
 	m, _ := sendable(t)

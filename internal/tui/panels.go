@@ -73,10 +73,18 @@ func (m Model) missionPanel(l Layout) []string {
 	// flowing with the content above them. They are status, like the branch
 	// on the bottom bar, and should not compete with what the agent is doing
 	// for a place in the panel.
-	status := m.sessionLines()
-	lines := fitSections(sections, l.BodyHeight-len(status))
+	status := m.sessionLines(l.MissionWidth())
+	budget := max(l.BodyHeight-len(status), 0)
 
-	for len(lines) < l.BodyHeight-len(status) {
+	// Clamped, not just padded. When the content cannot be cut down to the
+	// budget by dropping sections, it overruns it, and appending the status
+	// to an overrun leaves it stranded mid-panel — or trimmed off the bottom
+	// entirely by the fit that follows.
+	lines := fitSections(sections, budget)
+	if len(lines) > budget {
+		lines = lines[:budget]
+	}
+	for len(lines) < budget {
 		lines = append(lines, "")
 	}
 	return append(lines, status...)
@@ -145,23 +153,33 @@ func (m Model) replyRegion(l Layout) region {
 // panelHeading labels a scrollable panel, marking focus and showing the
 // position when there is more than fits.
 func (m Model) panelHeading(label string, area focusArea, total, rows, start, width int) string {
+	position := ""
+	if total > rows {
+		position = fmt.Sprintf("%d-%d/%d", start+1, min(start+rows, total), total)
+	}
+	return m.heading(label, area, position, width)
+}
+
+// heading renders a panel's label with its focus marker and, when there is
+// one, a position on the right.
+func (m Model) heading(label string, area focusArea, position string, width int) string {
 	style := styleLabel
 	if m.focus == area {
+		// Marked as well as styled, so which panel the keys reach is still
+		// visible in a terminal that renders no colour.
 		style = styleFocus
 		label += " ◂"
 	}
 	head := style.Render(label)
 
-	if total <= rows {
+	if position == "" {
 		return head
 	}
-	position := styleDim.Render(fmt.Sprintf("%d-%d/%d", start+1, min(start+rows, total), total))
-
-	gap := width - ansi.StringWidth(head) - ansi.StringWidth(position)
+	gap := width - ansi.StringWidth(head) - len(position)
 	if gap < 1 {
 		return head
 	}
-	return head + strings.Repeat(" ", gap) + position
+	return head + strings.Repeat(" ", gap) + styleDim.Render(position)
 }
 
 // wrap breaks text to a column without splitting words where it can be helped.
@@ -264,18 +282,17 @@ func (m Model) treePanel(l Layout, now time.Time) []string {
 
 // treeHeading labels the panel and, when the tree scrolls, shows the cursor's
 // position so hidden rows are never a surprise.
+// treeHeading labels the panel, marking focus the same way the other
+// scrollable panels do and showing the cursor's position when the tree is
+// longer than the window.
 func (m Model) treeHeading(width, total, visible int) string {
-	label := styleLabel.Render("PROJECT")
-	if total <= visible || total == 0 {
-		return label
+	// The cursor's place in the whole tree, not the window's: the tree is
+	// navigated, so where the selection sits is the useful number.
+	position := ""
+	if total > visible && total > 0 {
+		position = fmt.Sprintf("%d/%d", m.tree.cursor+1, total)
 	}
-
-	position := styleDim.Render(fmt.Sprintf("%d/%d", m.tree.cursor+1, total))
-	gap := width - ansi.StringWidth(label) - ansi.StringWidth(position)
-	if gap < 1 {
-		return label
-	}
-	return label + strings.Repeat(" ", gap) + position
+	return m.heading("PROJECT", focusTree, position, width)
 }
 
 // treeRow renders one tree entry with its activity marker at the right edge.
@@ -292,11 +309,16 @@ func (m Model) treeRow(row project.Row, width int, now time.Time, selected bool)
 	marker, markerStyle := m.rowMarker(row.Node, now)
 
 	// The selected row is drawn in reverse video across the full column, so
-	// it reads as selected without relying on color.
+	// it reads as selected without relying on color. Only while the tree has
+	// focus, though: a highlight that looks the same whether or not the
+	// arrow keys reach the tree says nothing about where they will go.
 	if selected {
 		line := label
 		if marker != "" {
 			line = fitLine(label, width-2) + " " + marker
+		}
+		if m.focus != focusTree {
+			return styleDim.Render(fitLine(line, width))
 		}
 		return styleSelected.Render(fitLine(line, width))
 	}
@@ -378,67 +400,86 @@ func activityDetail(a state.Action) string {
 // It is a status line, not a dashboard. There are no token counts or costs
 // here, and everything shown was reported by the agent rather than measured
 // or estimated by AgentView.
-func (m Model) sessionLines() []string {
+// It reads the way Claude Code's own status line does, so the two say the
+// same things in the same shape and neither has to be translated into the
+// other while looking between them:
+//
+//	Opus 5 | Context: 73% used
+//	5h: 85% (reset 8/27 19:40) | 7d: 39% (reset 8/31 13:00)
+func (m Model) sessionLines(width int) []string {
 	s := m.st.Agent.Session
 	if s == nil {
 		return nil
 	}
 
-	var parts []string
+	var head []string
 	if s.Model != "" {
-		parts = append(parts, shortModel(s.Model))
+		head = append(head, modelName(s.Model))
 	}
-	parts = append(parts, limitParts(s)...)
+	if context := contextLabel(s); context != "" {
+		head = append(head, context)
+	}
+	limits := limitParts(s)
 
-	// The context this session carries. A turn re-sends everything before it,
-	// so this number climbing is what makes a long session expensive, and it
-	// is the one thing a usage readout here is actually for.
-	var detail []string
-	if s.InputTokens > 0 {
-		context := fmt.Sprintf("ctx %s", compactCount(s.InputTokens))
-		if s.InputTokens >= heavyContext {
-			// A session AgentView owns is never compacted, so a context this
-			// large will keep costing this much on every further turn.
-			context += " — restart with ctrl+n to clear"
-		}
-		detail = append(detail, context)
-	}
-	if s.Turns > 0 {
-		detail = append(detail, fmt.Sprintf("%d turns", s.Turns))
-	}
-	if s.CostUSD > 0 {
-		detail = append(detail, fmt.Sprintf("$%.2f", s.CostUSD))
-	}
-
-	if len(parts) == 0 && len(detail) == 0 {
+	if len(head) == 0 && len(limits) == 0 {
 		return nil
 	}
 
-	style := styleDim
-	if _, peak, ok := s.Peak(); ok && peak.Used >= 0.9 {
-		// The window closest to running out is the one worth noticing.
-		style = styleWarn
+	var lines []string
+	if len(head) > 0 {
+		lines = append(lines, contextStyle(s).Render(fitLine(strings.Join(head, " | "), width)))
+	}
+	if len(limits) > 0 {
+		lines = append(lines, limitStyle(s).Render(fitLine(strings.Join(limits, " | "), width)))
 	}
 
-	lines := []string{styleLabel.Render("SESSION")}
-	if len(parts) > 0 {
-		lines = append(lines, style.Render(strings.Join(parts, "   ")))
-	}
-	if len(detail) > 0 {
-		lines = append(lines, styleDim.Render(strings.Join(detail, "   ")))
+	// A session AgentView owns is never compacted, so a context this full
+	// keeps costing what it costs on every further turn.
+	if s.ContextPercent >= heavyContextShare {
+		lines = append(lines, styleWarn.Render(fitLine("ctrl+n starts a fresh session", width)))
 	}
 	return lines
 }
 
-// compactCount renders a token count in the units people read them in.
-func compactCount(n int) string {
-	switch {
-	case n >= 1_000_000:
-		return fmt.Sprintf("%.1fM", float64(n)/1_000_000)
-	case n >= 1_000:
-		return fmt.Sprintf("%.0fk", float64(n)/1_000)
+// heavyContextShare is where a context is full enough to be worth acting on.
+const heavyContextShare = 0.8
+
+// contextLabel says how full the context is, and nothing at all until the
+// agent has said — the window it measures against is not AgentView's to guess.
+func contextLabel(s *events.Session) string {
+	if s.ContextWindow <= 0 {
+		return ""
 	}
-	return fmt.Sprint(n)
+	return fmt.Sprintf("Context: %d%% used", int(s.ContextPercent*100+0.5))
+}
+
+func contextStyle(s *events.Session) lipgloss.Style {
+	if s.ContextPercent >= heavyContextShare {
+		return styleWarn
+	}
+	return styleDim
+}
+
+func limitStyle(s *events.Session) lipgloss.Style {
+	if _, peak, ok := s.Peak(); ok && peak.Used >= 0.9 {
+		// The window closest to running out is the one worth noticing.
+		return styleWarn
+	}
+	return styleDim
+}
+
+// modelName is the model written the way it is spoken: "Opus 5", not the id.
+func modelName(model string) string {
+	short := shortModel(model)
+
+	words := strings.Split(short, "-")
+	for i, word := range words {
+		if word == "" {
+			continue
+		}
+		words[i] = strings.ToUpper(word[:1]) + word[1:]
+	}
+	return strings.Join(words, " ")
 }
 
 // shortModel trims a model id to the part a person recognizes.
@@ -478,12 +519,12 @@ func limitParts(s *events.Session) []string {
 	for _, name := range names {
 		limit := s.Limits[name]
 
-		text := fmt.Sprintf("%s %d%%", limitLabel(name), int(limit.Used*100+0.5))
+		text := fmt.Sprintf("%s: %d%%", limitLabel(name), int(limit.Used*100+0.5))
 		if limit.Overage {
 			text += " over"
 		}
 		if !limit.ResetsAt.IsZero() {
-			text += " ↻" + resetLabel(limit.ResetsAt)
+			text += " (reset " + limit.ResetsAt.Format("1/2 15:04") + ")"
 		}
 		parts = append(parts, text)
 	}
@@ -496,20 +537,11 @@ func limitLabel(limit string) string {
 	case "five_hour":
 		return "5h"
 	case "seven_day", "weekly":
-		return "week"
+		return "7d"
 	case "monthly":
-		return "month"
+		return "30d"
 	}
 	return strings.ReplaceAll(limit, "_", " ")
-}
-
-// resetLabel says when a window rolls over: a clock time if that is today,
-// and a date once it is far enough out that a clock time would mislead.
-func resetLabel(at time.Time) string {
-	if until := time.Until(at); until < 24*time.Hour {
-		return at.Format("15:04")
-	}
-	return at.Format("Jan 2")
 }
 
 // nowLines renders the NOW panel's body.

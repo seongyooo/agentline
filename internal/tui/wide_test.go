@@ -114,9 +114,81 @@ func TestSessionLineShowsReportedFacts(t *testing.T) {
 	model, _ := New(st, nil, nil).Update(tea.WindowSizeMsg{Width: 100, Height: 30})
 	out := ansi.Strip(model.(Model).View())
 
-	for _, want := range []string{"SESSION", "opus-5", "5h 62%"} {
+	// Written the way Claude Code's own status line writes it, so the two do
+	// not have to be translated into each other.
+	for _, want := range []string{"Opus 5", "5h: 62%", "(reset "} {
 		if !strings.Contains(out, want) {
 			t.Errorf("session line missing %q:\n%s", want, out)
+		}
+	}
+}
+
+// How full the context is comes from the agent, which is the only thing that
+// knows the window it is measuring against.
+func TestContextShareIsShown(t *testing.T) {
+	st := state.New("/proj")
+	st.Project.Tree = project.MockTree()
+	st.Apply(events.Event{
+		Type: events.SessionInfo, Timestamp: time.Now(), Source: "claude-code",
+		Session: &events.Session{
+			Model:         "claude-opus-5-20260514",
+			ContextWindow: 200_000, ContextUsed: 146_000, ContextPercent: 0.73,
+		},
+	})
+
+	model, _ := New(st, nil, nil).Update(tea.WindowSizeMsg{Width: 100, Height: 30})
+	out := ansi.Strip(model.(Model).View())
+
+	if !strings.Contains(out, "Context: 73% used") {
+		t.Errorf("context share not shown:\n%s", out)
+	}
+}
+
+// Nothing is shown until the agent has said, rather than a share worked out
+// from a token count and a guess at the limit.
+func TestNoContextShareUntilReported(t *testing.T) {
+	st := state.New("/proj")
+	st.Project.Tree = project.MockTree()
+	st.Apply(events.Event{
+		Type: events.SessionInfo, Timestamp: time.Now(), Source: "claude-code",
+		Session: &events.Session{Model: "claude-opus-5-20260514", InputTokens: 143_000},
+	})
+
+	model, _ := New(st, nil, nil).Update(tea.WindowSizeMsg{Width: 100, Height: 30})
+	if out := ansi.Strip(model.(Model).View()); strings.Contains(out, "Context:") {
+		t.Errorf("a context share was shown without one being reported:\n%s", out)
+	}
+}
+
+// The session line belongs at the bottom of its column, whatever is above it.
+func TestSessionLineSitsAtTheBottom(t *testing.T) {
+	st := state.New("/proj")
+	st.Project.Tree = project.MockTree()
+
+	now := time.Now()
+	st.Apply(events.Event{Type: events.UserPrompt, Message: "do the thing", Timestamp: now, Source: "claude-code"})
+	st.Apply(events.Event{
+		Type: events.AgentReply, Timestamp: now, Source: "claude-code",
+		Message: strings.Repeat("a long answer that fills the panel and then some more. ", 12),
+	})
+	st.Apply(events.Event{
+		Type: events.SessionInfo, Timestamp: now, Source: "claude-code",
+		Session: &events.Session{
+			Model:         "claude-opus-5-20260514",
+			ContextWindow: 200_000, ContextPercent: 0.4,
+		},
+	})
+
+	for _, h := range []int{20, 24, 30, 40} {
+		model, _ := New(st, nil, nil).Update(tea.WindowSizeMsg{Width: 100, Height: h})
+		lines := strings.Split(ansi.Strip(model.(Model).View()), "\n")
+
+		body := computeLayout(100, h).BodyHeight
+		last := headerRows + body - 1 // the final row of the mission column
+
+		if !strings.Contains(lines[last], "Opus 5") && !strings.Contains(lines[last-1], "Opus 5") {
+			t.Errorf("height %d: session line is not at the bottom of the column:\n%s",
+				h, strings.Join(lines, "\n"))
 		}
 	}
 }
@@ -140,37 +212,53 @@ func TestBothUsageWindowsAreShown(t *testing.T) {
 	model, _ := New(st, nil, nil).Update(tea.WindowSizeMsg{Width: 120, Height: 30})
 	out := ansi.Strip(model.(Model).View())
 
-	for _, want := range []string{"5h 62%", "week 31%"} {
+	for _, want := range []string{"5h: 62%", "7d: 31%"} {
 		if !strings.Contains(out, want) {
 			t.Errorf("session line missing %q:\n%s", want, out)
 		}
 	}
 	// Shortest window first: it is the one that runs out soonest.
-	if strings.Index(out, "5h 62%") > strings.Index(out, "week 31%") {
+	if strings.Index(out, "5h: 62%") > strings.Index(out, "7d: 31%") {
 		t.Errorf("weekly window is shown before the five-hour one:\n%s", out)
 	}
 }
 
-// The context a session carries is what makes a long conversation expensive,
-// so it has to be visible rather than inferred from a slowly draining quota.
-func TestSessionLineShowsContextSize(t *testing.T) {
+// A session AgentView owns is never compacted, so a context this full keeps
+// costing what it costs on every further turn, and the way out is offered.
+func TestFullContextOffersARestart(t *testing.T) {
 	st := state.New("/proj")
 	st.Project.Tree = project.MockTree()
 	st.Apply(events.Event{
 		Type: events.SessionInfo, Timestamp: time.Now(), Source: "claude-code",
 		Session: &events.Session{
-			Model: "claude-opus-5-20260514",
-			Turns: 7, InputTokens: 143_000, OutputTokens: 2_100, CostUSD: 1.37,
+			Model:         "claude-opus-5-20260514",
+			ContextWindow: 200_000, ContextPercent: 0.86,
 		},
 	})
 
 	model, _ := New(st, nil, nil).Update(tea.WindowSizeMsg{Width: 100, Height: 30})
 	out := ansi.Strip(model.(Model).View())
 
-	for _, want := range []string{"ctx 143k", "7 turns", "$1.37"} {
-		if !strings.Contains(out, want) {
-			t.Errorf("session line missing %q:\n%s", want, out)
-		}
+	if !strings.Contains(out, "Context: 86% used") {
+		t.Errorf("context share not shown:\n%s", out)
+	}
+	if !strings.Contains(out, "ctrl+n") {
+		t.Errorf("no way out offered for a context this full:\n%s", out)
+	}
+}
+
+// A context with room left says nothing about restarting.
+func TestRoomyContextSaysNothingAboutRestarting(t *testing.T) {
+	st := state.New("/proj")
+	st.Project.Tree = project.MockTree()
+	st.Apply(events.Event{
+		Type: events.SessionInfo, Timestamp: time.Now(), Source: "claude-code",
+		Session: &events.Session{ContextWindow: 200_000, ContextPercent: 0.2},
+	})
+
+	model, _ := New(st, nil, nil).Update(tea.WindowSizeMsg{Width: 100, Height: 30})
+	if out := ansi.Strip(model.(Model).View()); strings.Contains(out, "ctrl+n") {
+		t.Errorf("restart offered for a context with room left:\n%s", out)
 	}
 }
 

@@ -28,6 +28,14 @@ type streamEvent struct {
 		Subtype   string `json:"subtype"`
 		RequestID string `json:"request_id"`
 		Error     string `json:"error"`
+
+		// Response is the payload of a request that returned something,
+		// such as how full the context window is.
+		Response *struct {
+			ContextWindowSize int     `json:"context_window_size"`
+			CurrentUsage      int     `json:"current_usage"`
+			UsedPercentage    float64 `json:"used_percentage"`
+		} `json:"response"`
 	} `json:"response"`
 
 	// Usage and cost are reported when a turn ends. They are what makes the
@@ -147,11 +155,23 @@ func (t *streamTranslator) translateLine(line []byte) []events.Event {
 		}
 
 	case "control_response":
+		if e.Response == nil {
+			return nil
+		}
 		// Only failures are worth surfacing: a control request that worked
 		// shows up as the change it made.
-		if e.Response != nil && e.Response.Subtype == "error" {
+		if e.Response.Subtype == "error" {
 			return []events.Event{t.event(events.AgentError, func(ev *events.Event) {
 				ev.Message = firstLine(e.Response.Error)
+			})}
+		}
+		// A request that answered with something, such as how full the
+		// context window is.
+		if usage := e.Response.Response; usage != nil && usage.ContextWindowSize > 0 {
+			return []events.Event{t.session(func(s *events.Session) {
+				s.ContextWindow = usage.ContextWindowSize
+				s.ContextUsed = usage.CurrentUsage
+				s.ContextPercent = usage.UsedPercentage
 			})}
 		}
 

@@ -17,9 +17,10 @@ import (
 // controllingSender records prompts and permission mode changes.
 type controllingSender struct {
 	fakeSender
-	modes   []string
-	models  []string
-	modeErr error
+	modes       []string
+	models      []string
+	contextAsks int
+	modeErr     error
 }
 
 func (c *controllingSender) SetPermissionMode(mode string) error {
@@ -32,6 +33,11 @@ func (c *controllingSender) SetPermissionMode(mode string) error {
 
 func (c *controllingSender) SetModel(model string) error {
 	c.models = append(c.models, model)
+	return nil
+}
+
+func (c *controllingSender) RequestContextUsage() error {
+	c.contextAsks++
 	return nil
 }
 
