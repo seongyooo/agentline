@@ -2,6 +2,7 @@ package tui
 
 import (
 	tea "github.com/charmbracelet/bubbletea"
+	"github.com/charmbracelet/x/ansi"
 
 	"github.com/seongyooo/agentline/internal/events"
 )
@@ -74,7 +75,10 @@ func (m Model) askLines(width int) []string {
 			// A sentence cut off mid-word has to look cut off, or it reads
 			// as the agent's whole explanation when it is half of one.
 			if i == askReasonRows-1 && len(reason) > askReasonRows {
-				line = fitLine(line, width-1) + "…"
+				// Truncated with no mark of its own, so the one added here is
+				// the only one: fitLine appends its own and two in a row read
+				// as a rendering fault rather than as a cut sentence.
+				line = fitLine(ansi.Truncate(line, width-1, "")+"…", width)
 			}
 			lines = append(lines, styleDim.Render(line))
 		}

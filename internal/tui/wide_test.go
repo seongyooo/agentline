@@ -262,10 +262,16 @@ func TestRoomyContextSaysNothingAboutRestarting(t *testing.T) {
 	}
 }
 
-// Nothing reported means nothing shown: AgentLine does not estimate usage.
+// The check is against what the line actually says. It used to look for the
+// word SESSION, which the session line has never contained, so it passed on
+// every frame, including ones showing a line that was never reported.
 func TestNoSessionLineWithoutAReport(t *testing.T) {
-	if out := ansi.Strip(render(t, 100, 30)); strings.Contains(out, "SESSION") {
-		t.Errorf("session line shown with nothing reported:\n%s", out)
+	out := ansi.Strip(render(t, 100, 30))
+	for _, absent := range []string{"Context:", "5h:", "7d:"} {
+		if strings.Contains(out, absent) {
+			t.Errorf("session line shows %q with nothing reported", absent)
+			t.Log(out)
+		}
 	}
 }
 

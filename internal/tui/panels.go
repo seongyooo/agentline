@@ -57,7 +57,7 @@ func (m Model) missionPanel(l Layout) []string {
 	now := m.nowLines()
 
 	sections := []section{
-		{rank: 3, lines: m.missionLines(l.MissionWidth())},
+		{rank: 3, lines: m.missionLines(l.MissionInner())},
 	}
 	// While a question stands, NEEDS YOU is what the agent is doing. Showing
 	// NOW as well printed the same sentence twice, one line apart.
@@ -67,7 +67,7 @@ func (m Model) missionPanel(l Layout) []string {
 	// A blocked agent goes above everything and is never dropped to make
 	// room: a panel that hid the question would leave the session stopped
 	// with nothing on screen saying why.
-	if lines := m.askLines(l.MissionWidth()); lines != nil {
+	if lines := m.askLines(l.MissionInner()); lines != nil {
 		sections = append([]section{{rank: 0, lines: lines}}, sections...)
 	}
 	// The answer, in a box that scrolls. It sits beside MISSION rather than
@@ -83,8 +83,8 @@ func (m Model) missionPanel(l Layout) []string {
 	// flowing with the content above them. They are status, like the branch
 	// on the bottom bar, and should not compete with what the agent is doing
 	// for a place in the panel.
-	status := m.sessionLines(l.MissionWidth())
-	budget := max(l.BodyHeight-len(status), 0)
+	status := m.sessionLines(l.MissionInner())
+	budget := max(l.BodyHeight-l.FrameRows()-len(status), 0)
 
 	// Clamped, not just padded. When the content cannot be cut down to the
 	// budget by dropping sections, it overruns it, and appending the status
@@ -126,7 +126,7 @@ func (m Model) replyWidth() int {
 	if m.width < minWidth || m.height < minHeight {
 		return 40
 	}
-	return max(computeLayout(m.width, m.height).MissionWidth(), 20)
+	return max(computeLayout(m.width, m.height).MissionInner(), 20)
 }
 
 // replyPanel renders the visible window of the reply, with its position when
@@ -136,7 +136,7 @@ func (m Model) replyPanel(l Layout, lines []string) []string {
 	start := clamp(m.replyScroll, 0, max(len(lines)-rows, 0))
 	end := min(start+rows, len(lines))
 
-	out := []string{m.panelHeading("REPLY", focusReply, len(lines), rows, start, l.MissionWidth())}
+	out := []string{m.panelHeading("REPLY", focusReply, len(lines), rows, start, l.MissionInner())}
 	return append(out, lines[start:end]...)
 }
 
@@ -280,12 +280,15 @@ func (m Model) treePanel(l Layout, now time.Time) []string {
 	}
 
 	rows := m.rows()
-	visible := l.BodyHeight - treeChrome
+	visible := l.BodyHeight - l.PanelChrome()
 	start, end, _ := m.tree.window(len(rows), visible)
 
-	lines := []string{m.treeHeading(l.TreeWidth, len(rows), visible), ""}
+	var lines []string
+	if !l.Boxed {
+		lines = []string{m.treeHeading(l.TreeWidth, len(rows), visible), ""}
+	}
 	for i := start; i < end; i++ {
-		lines = append(lines, m.treeRow(rows[i], l.TreeWidth, now, i == m.tree.cursor))
+		lines = append(lines, m.treeRow(rows[i], l.TreeInner(), now, i == m.tree.cursor))
 	}
 	return lines
 }
@@ -405,6 +408,9 @@ func (m Model) rowMarker(n *project.Node, now time.Time) (string, lipgloss.Style
 func (m Model) activityPanel(l Layout) []string {
 	all := m.st.Agent.Activity
 	if len(all) == 0 {
+		if l.Boxed {
+			return []string{styleDim.Render("No activity yet")}
+		}
 		return []string{styleLabel.Render("ACTIVITY"), styleDim.Render("No activity yet")}
 	}
 
@@ -414,7 +420,10 @@ func (m Model) activityPanel(l Layout) []string {
 	start := clamp(len(all)-rows-m.activityScroll, 0, max(len(all)-rows, 0))
 	end := min(start+rows, len(all))
 
-	lines := []string{m.panelHeading("ACTIVITY", focusActivity, len(all), rows, start, m.width)}
+	var lines []string
+	if !l.Boxed {
+		lines = append(lines, m.panelHeading("ACTIVITY", focusActivity, len(all), rows, start, m.width))
+	}
 	for _, a := range all[start:end] {
 		lines = append(lines, activityLine(a))
 	}

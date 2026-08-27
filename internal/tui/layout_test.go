@@ -6,7 +6,7 @@ func TestLayoutFillsExactHeight(t *testing.T) {
 	for _, h := range []int{12, 16, 20, 24, 30, 40, 60} {
 		for _, w := range []int{40, 60, 72, 100, 160} {
 			l := computeLayout(w, h)
-			total := chromeRows + l.BodyHeight + l.ActivityHeight()
+			total := chromeRows + l.BodyHeight + l.ActivityHeight() + l.PulseHeight()
 			if total != h {
 				t.Errorf("%dx%d: rows total %d, want %d", w, h, total, h)
 			}
@@ -14,6 +14,18 @@ func TestLayoutFillsExactHeight(t *testing.T) {
 				t.Errorf("%dx%d: body %d rows, want >= %d", w, h, l.BodyHeight, minBodyHeight)
 			}
 		}
+	}
+}
+
+// The session strip is the first thing to go. A short terminal spends its
+// rows on what the agent is doing now, not on what it did earlier.
+func TestPulseYieldsToEverythingElse(t *testing.T) {
+	short := computeLayout(100, pulseMinHeight-1)
+	if short.ShowPulse {
+		t.Error("the strip took a row from a terminal with none to spare")
+	}
+	if tall := computeLayout(100, pulseMinHeight); !tall.ShowPulse {
+		t.Error("the strip is missing from a terminal with room for it")
 	}
 }
 
@@ -29,7 +41,7 @@ func TestTwoColumnOnlyWhenWide(t *testing.T) {
 func TestColumnsFitWidth(t *testing.T) {
 	for _, w := range []int{72, 80, 100, 200} {
 		l := computeLayout(w, 30)
-		if got := l.TreeWidth + dividerWidth + l.MissionWidth(); got != w {
+		if got := l.TreeWidth + l.ColumnGap() + l.MissionWidth(); got != w {
 			t.Errorf("width %d: columns total %d", w, got)
 		}
 		if l.MissionWidth() < minTreeWidth {

@@ -20,7 +20,7 @@ import (
 // would mean reading it and summarizing, which is a judgement it has no way
 // to make honestly and is not what this tool is.
 func (m Model) inspectPanel(l Layout, node *project.Node, now time.Time) []string {
-	width := l.MissionWidth()
+	width := l.MissionInner()
 
 	kind := "FILE"
 	if node.Dir {

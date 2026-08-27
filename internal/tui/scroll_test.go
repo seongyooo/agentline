@@ -180,16 +180,22 @@ func TestTabReturnsToTheTreeAndSaysSo(t *testing.T) {
 
 // With focus elsewhere the tree must not look like the keys still reach it.
 func TestTreeStopsLookingSelectedWhenFocusLeaves(t *testing.T) {
+	// Checked on the whole frame, not the panel alone: the focus marker lives
+	// on the panel's frame when there is one, and colour is not available to
+	// carry it — a terminal that renders none must still show where the keys go.
 	m, _ := sendable(t)
-	focused := m.treePanel(computeLayout(100, 30), time.Now())
+	focused := ansi.Strip(m.View())
 
 	m = focusPromptKey(m)
-	blurred := m.treePanel(computeLayout(100, 30), time.Now())
+	blurred := ansi.Strip(m.View())
 
-	if strings.Join(focused, "\n") == strings.Join(blurred, "\n") {
+	if focused == blurred {
 		t.Error("the tree looks identical whether or not it has focus")
 	}
-	if strings.Contains(ansi.Strip(strings.Join(blurred, "\n")), "PROJECT ◂") {
+	if !strings.Contains(focused, "PROJECT ◂") {
+		t.Error("the tree does not show that the keys reach it")
+	}
+	if strings.Contains(blurred, "PROJECT ◂") {
 		t.Error("the tree still claims focus after it moved away")
 	}
 }

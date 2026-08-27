@@ -36,6 +36,10 @@ func TestLook(t *testing.T) {
 	}
 
 	now := time.Now()
+	// A real session is not eight actions in five minutes. The strip is drawn
+	// from counts, so judging it on sparse data judges the wrong picture.
+	seedBusySession(st, now.Add(-25*time.Minute), now.Add(-6*time.Minute))
+
 	for _, e := range []events.Event{
 		{Type: events.UserPrompt, Message: "Wire the drainage system to the valve", Timestamp: now.Add(-5 * time.Minute), Source: "claude-code"},
 		{Type: events.TaskProgress, Done: 2, Total: 5, Timestamp: now.Add(-5 * time.Minute), Source: "claude-code"},
@@ -70,5 +74,46 @@ func TestLook(t *testing.T) {
 		fmt.Println(strings.Repeat("=", size.w-8), size.w, "x", size.h)
 		fmt.Println(model.(Model).View())
 		fmt.Println(strings.Repeat("=", size.w))
+	}
+}
+
+// seedBusySession fills the pulse with the shape of an ordinary working
+// stretch: bursts of reading and editing, a run of tests, a failure, and the
+// quiet gaps in between.
+func seedBusySession(st *state.State, from, to time.Time) {
+	kinds := []events.Type{events.FileRead, events.FileRead, events.FileEdit, events.CommandStart, events.FileRead}
+	commands := []string{
+		"dotnet build",
+		"dotnet test --filter Puzzle",
+		"git status --porcelain",
+	}
+	paths := []string{
+		"Assets/Scripts/Puzzle/Valve.cs",
+		"Assets/Scripts/Rooms/WaterRoom.cs",
+		"Assets/Scripts/Core/Boot.cs",
+		"Assets/Scripts/Player/Move.cs",
+	}
+
+	span := to.Sub(from)
+	for i := 0; i < 220; i++ {
+		at := from.Add(time.Duration(float64(span) * float64(i) / 220))
+
+		// Two quiet stretches, so the row has gaps to make its bursts mean
+		// something.
+		if share := float64(i) / 220; (share > 0.22 && share < 0.34) || (share > 0.63 && share < 0.71) {
+			continue
+		}
+
+		e := events.Event{Type: kinds[i%len(kinds)], Timestamp: at, Source: "claude-code"}
+		switch e.Type {
+		case events.CommandStart:
+			e.Command = commands[i%len(commands)]
+		default:
+			e.Path = paths[i%len(paths)]
+		}
+		if i == 96 {
+			e = events.Event{Type: events.AgentError, Message: "build failed", Timestamp: at, Source: "claude-code"}
+		}
+		st.Apply(e)
 	}
 }

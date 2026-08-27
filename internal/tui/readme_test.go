@@ -25,6 +25,10 @@ func TestReadmeFrame(t *testing.T) {
 	st.Project.Tree = project.MockTree()
 
 	now := time.Now()
+	// The picture in the README should be of a session, not of five events.
+	// Still program output either way — only the scenario is realistic.
+	seedBusySession(st, now.Add(-22*time.Minute), now.Add(-5*time.Minute))
+
 	for _, e := range []events.Event{
 		{Type: events.UserPrompt, Message: "Add Git awareness to the header", Timestamp: now.Add(-4 * time.Minute), Source: "claude"},
 		{Type: events.TaskProgress, Done: 2, Total: 4, Timestamp: now.Add(-4 * time.Minute), Source: "claude"},
