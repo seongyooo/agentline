@@ -13,6 +13,7 @@ import (
 	"github.com/charmbracelet/x/ansi"
 
 	"github.com/seonl/agentview/internal/agent/claude"
+	"github.com/seonl/agentview/internal/events"
 	"github.com/seonl/agentview/internal/project"
 	"github.com/seonl/agentview/internal/state"
 )
@@ -25,20 +26,10 @@ func TestStandInAgentDrivesTheWholeUI(t *testing.T) {
 	if testing.Short() {
 		t.Skip("builds a helper binary")
 	}
-	bin := buildStandIn(t)
-
 	root := t.TempDir()
 	writeTree(t, root, "src/main.go", "README.md")
 
-	ctx, cancel := context.WithTimeout(context.Background(), 90*time.Second)
-	defer cancel()
-
-	session := claude.NewStream(root)
-	session.Bin = bin
-	stream, err := session.Events(ctx)
-	if err != nil {
-		t.Fatal(err)
-	}
+	session, stream := startStandIn(t, root)
 
 	scanner := project.NewScanner(root)
 	st := state.New(root)
@@ -117,23 +108,116 @@ func TestStandInAgentDrivesTheWholeUI(t *testing.T) {
 	}
 }
 
+// A thing you run to try out an interface must not put a repository at risk.
+// It reads real files, which is what makes the tree behave, but the only file
+// it ever writes is its own.
+func TestStandInAgentWritesOnlyItsOwnFile(t *testing.T) {
+	if testing.Short() {
+		t.Skip("builds a helper binary")
+	}
+	root := t.TempDir()
+	writeTree(t, root, "src/main.go", "README.md", "go.mod")
+
+	before := snapshot(t, root)
+	session, stream := startStandIn(t, root)
+
+	// The editing branch runs first, while the only files present are the
+	// project's own. Creating the scratch file first would put it at the head
+	// of the list and hide a stand-in that edits whatever it finds there.
+	for _, prompt := range []string{"have a look around", "write the readme", "look again"} {
+		if err := session.Send(prompt); err != nil {
+			t.Fatal(err)
+		}
+		drainTurn(t, stream)
+	}
+
+	for path, was := range before {
+		now, err := describe(filepath.Join(root, path))
+		if err != nil {
+			t.Errorf("%s is gone: %v", path, err)
+			continue
+		}
+		if now != was {
+			t.Errorf("%s was written to", path)
+		}
+	}
+}
+
+// fileState is enough to tell whether a file was written to at all.
+//
+// The content alone is not: the flaw this guards against rewrote files with
+// their own contents, which reads as unchanged while still being a write that
+// a crash could truncate. The modification time is what catches it.
+type fileState struct {
+	content  string
+	modified time.Time
+}
+
+func describe(path string) (fileState, error) {
+	content, err := os.ReadFile(path)
+	if err != nil {
+		return fileState{}, err
+	}
+	info, err := os.Stat(path)
+	if err != nil {
+		return fileState{}, err
+	}
+	return fileState{content: string(content), modified: info.ModTime()}, nil
+}
+
+// snapshot records every file under root as it stands.
+func snapshot(t *testing.T, root string) map[string]fileState {
+	t.Helper()
+
+	files := map[string]fileState{}
+	err := filepath.WalkDir(root, func(path string, d os.DirEntry, err error) error {
+		if err != nil || d.IsDir() {
+			return err
+		}
+		state, err := describe(path)
+		if err != nil {
+			return err
+		}
+		rel, err := filepath.Rel(root, path)
+		if err != nil {
+			return err
+		}
+		files[rel] = state
+		return nil
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	return files
+}
+
+// drainTurn reads until the turn ends.
+func drainTurn(t *testing.T, stream <-chan events.Event) {
+	t.Helper()
+
+	deadline := time.After(60 * time.Second)
+	for {
+		select {
+		case e, ok := <-stream:
+			if !ok {
+				return
+			}
+			if e.Type == events.AgentStatus && e.Status == events.StatusWaiting {
+				return
+			}
+		case <-deadline:
+			t.Fatal("the turn never ended")
+		}
+	}
+}
+
 // Control requests have to reach it too, or the keys that use them cannot be
 // tried without a real session.
 func TestStandInAgentAnswersControlRequests(t *testing.T) {
 	if testing.Short() {
 		t.Skip("builds a helper binary")
 	}
-	bin := buildStandIn(t)
-
-	ctx, cancel := context.WithTimeout(context.Background(), 60*time.Second)
-	defer cancel()
-
-	session := claude.NewStream(t.TempDir())
-	session.Bin = bin
-	stream, err := session.Events(ctx)
-	if err != nil {
-		t.Fatal(err)
-	}
+	session, stream := startStandIn(t, t.TempDir())
 
 	if err := session.SetPermissionMode("acceptEdits"); err != nil {
 		t.Fatal(err)
@@ -185,4 +269,46 @@ func buildStandIn(t *testing.T) string {
 		t.Fatalf("build fakeagent: %v\n%s", err, out)
 	}
 	return bin
+}
+
+// startStandIn runs the helper against root and guarantees it is gone before
+// the test returns.
+//
+// The session's working directory is the temporary directory the test is
+// about to have removed, and Windows will not delete a directory a live
+// process is sitting in. Waiting for the stream to close is what makes that
+// removal deterministic rather than a race against a process shutting down.
+func startStandIn(t *testing.T, root string) (*claude.Stream, <-chan events.Event) {
+	t.Helper()
+
+	ctx, cancel := context.WithTimeout(context.Background(), 90*time.Second)
+
+	session := claude.NewStream(root)
+	session.Bin = buildStandIn(t)
+
+	stream, err := session.Events(ctx)
+	if err != nil {
+		cancel()
+		t.Fatal(err)
+	}
+
+	t.Cleanup(func() {
+		cancel()
+
+		// The stream closes once the process has exited, so draining it is
+		// how the test knows there is nothing left holding the directory.
+		done := time.After(30 * time.Second)
+		for {
+			select {
+			case _, ok := <-stream:
+				if !ok {
+					return
+				}
+			case <-done:
+				t.Error("the session did not shut down")
+				return
+			}
+		}
+	})
+	return session, stream
 }

@@ -41,6 +41,7 @@ type agent struct {
 
 	turns  int
 	tokens int
+	edits  int
 }
 
 // run reads messages until the pipe closes, which is how AgentView ends a
@@ -182,12 +183,10 @@ func (a *agent) plan(prompt string) []func() {
 		steps = append(steps, func() { a.runCommand("go test ./...", "Run the test suite", false) })
 
 	case strings.Contains(lower, "readme"), strings.Contains(lower, "리드미"), strings.Contains(lower, "문서"):
-		steps = append(steps, func() { a.writeFile("FAKE-NOTES.md", "# Notes\n\nWritten by fakeagent.\n") })
+		steps = append(steps, func() { a.writeScratch() })
 
 	default:
-		if len(files) > 0 {
-			steps = append(steps, func() { a.touchFile(files[0]) })
-		}
+		steps = append(steps, func() { a.editScratch() })
 		steps = append(steps, func() { a.runCommand("go build ./...", "Build the project", false) })
 	}
 	return steps
@@ -202,32 +201,38 @@ func (a *agent) readFile(path string) {
 	a.toolResult(id, err != nil)
 }
 
-// writeFile creates a file, which is what makes it appear in the tree.
-func (a *agent) writeFile(path, content string) {
+// scratchFile is the only file this program ever writes.
+const scratchFile = "FAKE-NOTES.md"
+
+// writeScratch creates the file, which is what makes it appear in the tree.
+func (a *agent) writeScratch() {
 	id := toolID()
 	a.toolUse(id, "Write", map[string]any{
-		"file_path":   abs(path),
-		"description": "Write " + path,
+		"file_path":   abs(scratchFile),
+		"description": "Write " + scratchFile,
 	})
 
 	pause() // long enough to see the entry arrive dimmed before it lands
-	err := os.WriteFile(abs(path), []byte(content), 0o644)
+	err := os.WriteFile(abs(scratchFile), []byte("# Notes\n\nWritten by fakeagent.\n"), 0o644)
 	a.toolResult(id, err != nil)
 }
 
-// touchFile rewrites a file with its own contents, so an edit is reported
-// without the file actually changing.
-func (a *agent) touchFile(path string) {
+// editScratch reports an edit, against the one file this program owns.
+//
+// It never writes to a file it did not create. Rewriting a real source file
+// with its own contents would look harmless, but a process killed mid-write
+// truncates it, and a thing you run to try out an interface has no business
+// putting a repository at that risk.
+func (a *agent) editScratch() {
 	id := toolID()
 	a.toolUse(id, "Edit", map[string]any{
-		"file_path":   abs(path),
-		"description": "Adjust " + filepath.Base(path),
+		"file_path":   abs(scratchFile),
+		"description": "Adjust " + scratchFile,
 	})
 
-	content, err := os.ReadFile(abs(path))
-	if err == nil {
-		err = os.WriteFile(abs(path), content, 0o644)
-	}
+	a.edits++
+	err := os.WriteFile(abs(scratchFile),
+		fmt.Appendf(nil, "# Notes\n\nWritten by fakeagent.\nEdits: %d\n", a.edits), 0o644)
 	a.toolResult(id, err != nil)
 }
 
@@ -370,6 +375,12 @@ func projectFiles() []string {
 		if err != nil || len(found) >= 12 {
 			return err
 		}
+		if path == "." {
+			// The root's own name is ".", which the check below would read
+			// as a hidden directory and skip, taking the whole tree with it.
+			return nil
+		}
+
 		name := d.Name()
 		if d.IsDir() {
 			if strings.HasPrefix(name, ".") || name == "node_modules" {
