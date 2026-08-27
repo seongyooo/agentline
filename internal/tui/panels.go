@@ -32,7 +32,8 @@ func (m Model) header(width int) string {
 	// How tool calls are being approved changes what the agent will do
 	// without asking, so it belongs beside the status rather than buried.
 	if mode := m.st.PermissionMode(); mode != "" {
-		left += styleDim.Render("   " + modeLabel(mode))
+		label, style := modeLabel(mode)
+		left += "   " + style.Render(label)
 	}
 	right := style.Render(fmt.Sprintf("%s %s  %s", symbol, strings.ToUpper(m.st.Agent.Agent), text))
 
@@ -675,26 +676,35 @@ func (m Model) promptText(width int) string {
 	return "…" + value
 }
 
-// modeLabel names a permission mode in words that say what it does.
-func modeLabel(mode string) string {
+// modeLabel names a permission mode and colours it by how much the agent can
+// do without asking.
+//
+// The colour is the point: the mode decides what happens to the user's files
+// without a prompt, so how far it has been opened up should be readable at a
+// glance rather than needing the words to be parsed.
+func modeLabel(mode string) (string, lipgloss.Style) {
 	switch mode {
-	case "default", "manual":
-		return "asks first"
-	case "acceptEdits":
-		return "edits allowed"
-	case "auto", "dontAsk":
-		return "auto"
 	case "plan":
-		return "planning"
+		// Nothing is changed at all, which is the most restricted of them.
+		return "planning", styleWorking
+	case "default", "manual":
+		return "asks first", styleOK
+	case "acceptEdits":
+		// Files change without asking, but commands still stop for approval.
+		return "edits allowed", styleWarn
+	case "auto", "dontAsk":
+		return "auto", styleError
 	case "bypassPermissions":
-		return "no checks"
+		return "no checks", styleError
 	}
-	return mode
+	return mode, styleDim
 }
 
 // inputHint says what the keys do, which changes with focus.
 func (m Model) inputHint() string {
 	switch {
+	case m.picker.open:
+		return "← → choose   enter apply   esc cancel"
 	case m.inputFocused() && len(m.slashMatches()) > 0:
 		return "tab complete   enter send"
 	case m.inputFocused():

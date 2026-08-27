@@ -27,11 +27,14 @@ func (m Model) View() string {
 		lines = append(lines, rule(m.width))
 		lines = append(lines, fit(m.activityPanel(l), m.width, l.ActivityHeight()-1)...)
 	}
-	// The commands still matching take the rule's row rather than a row of
-	// their own, so offering them costs the layout nothing.
-	if hint := m.slashHint(m.width); hint != "" {
-		lines = append(lines, fitLine(styleDim.Render(hint), m.width))
-	} else {
+	// An open choice and the commands still matching both take the rule's
+	// row rather than one of their own, so neither costs the layout anything.
+	switch {
+	case m.picker.open:
+		lines = append(lines, fitLine(m.pickerLine(m.width), m.width))
+	case m.slashHint(m.width) != "":
+		lines = append(lines, fitLine(styleDim.Render(m.slashHint(m.width)), m.width))
+	default:
 		lines = append(lines, rule(m.width))
 	}
 	lines = append(lines, m.inputBar(m.width))

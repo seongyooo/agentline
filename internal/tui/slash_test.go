@@ -18,6 +18,7 @@ import (
 type controllingSender struct {
 	fakeSender
 	modes   []string
+	models  []string
 	modeErr error
 }
 
@@ -26,6 +27,11 @@ func (c *controllingSender) SetPermissionMode(mode string) error {
 		return c.modeErr
 	}
 	c.modes = append(c.modes, mode)
+	return nil
+}
+
+func (c *controllingSender) SetModel(model string) error {
+	c.models = append(c.models, model)
 	return nil
 }
 
@@ -140,16 +146,208 @@ func TestArgumentIsNotCompleted(t *testing.T) {
 	}
 }
 
-// The command text is the agent's to interpret; AgentView sends it unchanged.
+// Commands the agent owns are sent as typed; interpreting them is its job.
 func TestSlashCommandIsSentAsTypedText(t *testing.T) {
+	m, sender := announced(t, "compact")
+	m = typeText(m, "/compact now")
+
+	_, cmd := key(m, tea.KeyEnter)
+	cmd()
+
+	if len(sender.sent) != 1 || sender.sent[0] != "/compact now" {
+		t.Errorf("sent = %v, want [/compact now]", sender.sent)
+	}
+}
+
+// A session AgentView owns has no picker of its own, so /model with a name is
+// carried out over the control protocol rather than sent as text that would
+// do nothing.
+func TestModelCommandSwitchesTheModel(t *testing.T) {
 	m, sender := announced(t, "model")
-	m = typeText(m, "/model opus")
+	m = typeText(m, "/model sonnet")
+
+	_, cmd := key(m, tea.KeyEnter)
+	updated, _ := m.Update(cmd())
+	m = updated.(Model)
+
+	if len(sender.models) != 1 || sender.models[0] != "sonnet" {
+		t.Errorf("asked for %v, want [sonnet]", sender.models)
+	}
+	if len(sender.sent) != 0 {
+		t.Errorf("also sent %v as text", sender.sent)
+	}
+}
+
+// "default" is the agent's word for returning to the session default, and is
+// sent as an empty model rather than as a model of that name.
+func TestDefaultModelResetsRatherThanNamingAModel(t *testing.T) {
+	m, sender := announced(t, "model")
+	m = typeText(m, "/model default")
+
+	_, cmd := key(m, tea.KeyEnter)
+	cmd()
+
+	if len(sender.models) != 1 || sender.models[0] != "" {
+		t.Errorf("asked for %v, want [\"\"]", sender.models)
+	}
+}
+
+// Only observing a session means AgentView cannot switch models, so the text
+// goes to the agent rather than being swallowed by a feature that is absent.
+func TestModelCommandFallsBackToTextWithoutAController(t *testing.T) {
+	st := state.New("/proj")
+	st.Project.Tree = project.MockTree()
+	sender := &fakeSender{}
+
+	model, _ := New(st, nil, nil).WithSender(sender).Update(tea.WindowSizeMsg{Width: 100, Height: 30})
+	m := typeText(focusPromptKey(model.(Model)), "/model opus")
 
 	_, cmd := key(m, tea.KeyEnter)
 	cmd()
 
 	if len(sender.sent) != 1 || sender.sent[0] != "/model opus" {
-		t.Errorf("sent = %v, want [/model opus]", sender.sent)
+		t.Errorf("sent = %v, want the text passed through", sender.sent)
+	}
+}
+
+// A bare /model opens the picker, which is what the session cannot offer.
+func TestBareModelCommandOpensThePicker(t *testing.T) {
+	m, sender := announced(t, "model")
+	m = typeText(m, "/model")
+
+	m, _ = key(m, tea.KeyEnter)
+	if !m.picker.open {
+		t.Fatal("picker did not open")
+	}
+	if len(sender.sent) != 0 {
+		t.Errorf("also sent %v as text", sender.sent)
+	}
+	if out := ansi.Strip(m.View()); !strings.Contains(out, "MODEL") {
+		t.Errorf("picker not shown:\n%s", out)
+	}
+}
+
+func TestPickerAppliesTheSelection(t *testing.T) {
+	m, sender := announced(t, "model")
+	m = typeText(m, "/model")
+	m, _ = key(m, tea.KeyEnter)
+
+	before := m.picker.options[m.picker.cursor]
+	m, _ = key(m, tea.KeyRight)
+	chosen := m.picker.options[m.picker.cursor]
+	if chosen == before {
+		t.Fatal("the selection did not move")
+	}
+
+	m, cmd := key(m, tea.KeyEnter)
+	if m.picker.open {
+		t.Error("picker stayed open after choosing")
+	}
+	cmd()
+
+	if len(sender.models) != 1 || sender.models[0] != chosen {
+		t.Errorf("asked for %v, want [%s]", sender.models, chosen)
+	}
+}
+
+// While the picker is open the arrows move the selection, not the caret.
+func TestPickerTakesTheArrowKeys(t *testing.T) {
+	m, _ := announced(t, "model")
+	m = typeText(m, "/model")
+	m, _ = key(m, tea.KeyEnter)
+
+	m, _ = key(m, tea.KeyDown)
+	if m.picker.cursor != 1 {
+		t.Errorf("cursor = %d, want 1", m.picker.cursor)
+	}
+
+	// The ends hold still rather than wrapping.
+	for i := 0; i < 20; i++ {
+		m, _ = key(m, tea.KeyUp)
+	}
+	if m.picker.cursor != 0 {
+		t.Errorf("cursor = %d, want it to stop at the start", m.picker.cursor)
+	}
+}
+
+func TestEscapeClosesThePickerWithoutChoosing(t *testing.T) {
+	m, sender := announced(t, "model")
+	m = typeText(m, "/model")
+	m, _ = key(m, tea.KeyEnter)
+
+	m, _ = key(m, tea.KeyEsc)
+	if m.picker.open {
+		t.Error("picker stayed open")
+	}
+	if len(sender.models) != 0 {
+		t.Errorf("a model was set anyway: %v", sender.models)
+	}
+}
+
+// The model the session is on comes first, so switching back is one key away.
+func TestPickerStartsFromTheCurrentModel(t *testing.T) {
+	m, _ := announced(t, "model")
+	m.st.SetModel("claude-sonnet-5-20260514")
+
+	m = typeText(m, "/model")
+	m, _ = key(m, tea.KeyEnter)
+
+	if got := m.picker.options[0]; got != "sonnet" {
+		t.Errorf("first option = %q, want the current model", got)
+	}
+	// And it is listed once, not twice.
+	var count int
+	for _, option := range m.picker.options {
+		if option == "sonnet" {
+			count++
+		}
+	}
+	if count != 1 {
+		t.Errorf("sonnet appears %d times", count)
+	}
+}
+
+// The selection has to be visible, or the picker is a list with no way to
+// tell what pressing enter would choose.
+func TestPickerMarksTheSelection(t *testing.T) {
+	m, _ := announced(t, "model")
+	m = typeText(m, "/model")
+	m, _ = key(m, tea.KeyEnter)
+
+	first := m.pickerLine(100)
+	m, _ = key(m, tea.KeyRight)
+	second := m.pickerLine(100)
+
+	// Stripped of styling, as a monochrome terminal would show it: the
+	// marking must still say which option enter would choose.
+	if ansi.Strip(first) == ansi.Strip(second) {
+		t.Error("the selection is invisible without colour")
+	}
+	if ansi.StringWidth(first) != ansi.StringWidth(second) {
+		t.Error("moving the selection shifted the list")
+	}
+
+	options := strings.Fields(ansi.Strip(first))
+	if !strings.Contains(ansi.Strip(first), "["+m.picker.options[0]+"]") {
+		t.Errorf("the first option is not marked: %v", options)
+	}
+}
+
+// The picker must not break the layout at any width.
+func TestPickerKeepsTheLayout(t *testing.T) {
+	for _, w := range []int{40, 72, 100, 200} {
+		st := state.New("/proj")
+		st.Project.Tree = project.MockTree()
+
+		model, _ := New(st, nil, nil).WithSender(&controllingSender{}).Update(tea.WindowSizeMsg{Width: w, Height: 30})
+		m := typeText(focusPromptKey(model.(Model)), "/model")
+		m, _ = key(m, tea.KeyEnter)
+
+		for i, line := range strings.Split(m.View(), "\n") {
+			if got := ansi.StringWidth(line); got != w {
+				t.Errorf("width %d line %d: got %d", w, i, got)
+			}
+		}
 	}
 }
 

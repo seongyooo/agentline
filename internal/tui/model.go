@@ -72,6 +72,9 @@ type Model struct {
 	replyScroll    int
 	activityScroll int
 
+	// picker is an open choice, such as which model to run.
+	picker picker
+
 	// inspecting is the tree entry being looked at, which takes over the
 	// mission column while it is set.
 	inspecting *project.Node
@@ -172,6 +175,15 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		}
 		return m, nil
 
+	case modelChangedMsg:
+		// Recorded only once the session accepted it, and the agent reports
+		// its own model on the next turn anyway.
+		m.sendErr = msg.err
+		if msg.err == nil {
+			m.st.SetModel(msg.model)
+		}
+		return m, nil
+
 	case modeChangedMsg:
 		// Recorded only once the session accepted it, so the header never
 		// shows a mode the agent is not actually in.
@@ -201,6 +213,24 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 // else is text, so "q" must not quit and the arrows must move the cursor
 // rather than the tree.
 func (m Model) typing(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
+	// An open choice takes the keys until it is answered, so the arrows move
+	// the selection rather than the caret.
+	if m.picker.open {
+		switch msg.String() {
+		case "ctrl+c":
+			return m, tea.Quit
+		case "up", "left":
+			m.movePicker(-1)
+		case "down", "right":
+			m.movePicker(1)
+		case "enter":
+			return m, m.choosePicker()
+		case "esc":
+			m.closePicker()
+		}
+		return m, nil
+	}
+
 	switch msg.String() {
 	case "ctrl+c":
 		return m, tea.Quit

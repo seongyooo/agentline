@@ -167,6 +167,15 @@ func (s *State) SetPermissionMode(mode string) {
 	s.Agent.Session.Capabilities.PermissionMode = mode
 }
 
+// SetModel records a model the session has accepted. The agent reports its
+// own model when the next turn starts, which supersedes this.
+func (s *State) SetModel(model string) {
+	if s.Agent.Session == nil {
+		s.Agent.Session = &events.Session{}
+	}
+	s.Agent.Session.Model = model
+}
+
 // SlashCommands are the commands the agent said it accepts, and is empty
 // until it says so. AgentView offers no command it has not been told about.
 func (s *State) SlashCommands() []string {

@@ -22,6 +22,32 @@ type Sender interface {
 // owns can offer them and one it is merely watching cannot.
 type Controller interface {
 	SetPermissionMode(mode string) error
+	SetModel(model string) error
+}
+
+// modelChangedMsg reports the outcome of a model change.
+type modelChangedMsg struct {
+	model string
+	err   error
+}
+
+// setModel switches the running session's model.
+//
+// "default" is the agent's own word for returning to the session default, and
+// is sent as an empty model rather than as a model of that name.
+func (m *Model) setModel(model string) tea.Cmd {
+	controller, ok := m.sender.(Controller)
+	if !ok {
+		return nil
+	}
+
+	requested := model
+	if model == "default" {
+		requested = ""
+	}
+	return func() tea.Msg {
+		return modelChangedMsg{model: model, err: controller.SetModel(requested)}
+	}
 }
 
 // modeChangedMsg reports the outcome of a permission mode change.
@@ -104,6 +130,19 @@ func (m *Model) submitPrompt() tea.Cmd {
 	prompt := strings.TrimSpace(m.input.Value())
 	if prompt == "" || !m.canSend() {
 		return nil
+	}
+
+	// Commands AgentView answers itself are only intercepted when it can
+	// actually carry them out. Otherwise the text goes to the agent as
+	// typed, rather than being swallowed by a feature that is not there.
+	if _, ok := m.sender.(Controller); ok {
+		if m.openPickerFor(prompt) {
+			return nil
+		}
+		if model, ok := strings.CutPrefix(prompt, "/model "); ok {
+			m.input.Reset()
+			return m.setModel(strings.TrimSpace(model))
+		}
 	}
 	m.input.Reset()
 
