@@ -25,37 +25,37 @@ AI 코딩 에이전트를 지켜보는 터미널 UI입니다.
 
 ```text
 AGENTLINE   asks first                                                             ● CLAUDE  WORKING
-────────────────────────────────────────────────────────────────────────────────────────────────────
+───────────────────────────────────────┬────────────────────────────────────────────────────────────
 PROJECT ◂                              │ MISSION                                                    
                                        │ Add Git awareness to the header                            
-Assets/                              ● │ ████████████░░░░░░░░░░░░ 2/4                               
-├─ Scripts/                          ● │                                                            
-│  ├─ Core/                            │ NOW                                                        
-│  ├─ Player/                          │ Editing   3s                                               
-│  ├─ Puzzle/                        ● │ .../Puzzle/DrainSystem.cs                                  
-│  │  ├─ Valve.cs                      │                                                            
-│  │  └─ DrainSystem.cs              ● │ NEXT                                                       
-│  └─ Rooms/                         ◐ │ —                                                          
-│     └─ WaterRoom.cs                ◐ │                                                            
-├─ Prefabs/                            │                                                            
-├─ Scenes/                             │ Opus 5 | Context: 31% used                                 
-└─ Materials/                          │ 5h: 62% (reset 8/27 19:40) | 7d: 28% (reset 8/31 13:00)    
-────────────────────────────────────────────────────────────────────────────────────────────────────
+▾ Assets/                            ● │ ████████████░░░░░░░░░░░░ 2/4                               
+├─ ▾ Scripts/                        ● │                                                            
+│  ├─ ▾ Core/                          │ NOW                                                        
+│  ├─ ▾ Player/                        │ Editing   3s                                               
+│  ├─ ▾ Puzzle/                      ● │ .../Puzzle/DrainSystem.cs                                  
+│  │  ├─   Valve.cs                    │                                                            
+│  │  └─   DrainSystem.cs            ● │ NEXT                                                       
+│  └─ ▾ Rooms/                       ◐ │ —                                                          
+│     └─   WaterRoom.cs              ◐ │                                                            
+├─ ▾ Prefabs/                          │                                                            
+├─ ▾ Scenes/                           │ Opus 5 | Context: 31% used                                 
+└─ ▾ Materials/                        │ 5h: 62% (reset 8/27 19:40) | 7d: 28% (reset 8/31 13:00)    
+───────────────────────────────────────┴────────────────────────────────────────────────────────────
 ACTIVITY                                                                                            
-19:01  Working                                                                                      
-19:02  Reading   .../Rooms/WaterRoom.cs                                                             
-19:03  Running   Run the git package tests                                                          
-19:04  Done      Run the git package tests                                                          
-19:05  Editing   .../Puzzle/DrainSystem.cs                                                          
+20:53  Working                                                                                      
+20:54  Reading   .../Rooms/WaterRoom.cs                                                             
+20:55  Running   Run the git package tests                                                          
+20:56  Done      Run the git package tests                                                          
+20:57  Editing   .../Puzzle/DrainSystem.cs                                                          
                                                                                                     
                                                                                                     
                                                                                                     
 ────────────────────────────────────────────────────────────────────────────────────────────────────
-> Ask Claude Code...                                              enter inspect   tab focus   q quit
+> Ask claude...                                                   enter inspect   tab focus   q quit
 ```
 
 - **헤더** — 에이전트와 상태(`WORKING`, `WAITING`, `NEEDS INPUT`, `DONE`, `ERROR`), 그리고 권한 모드. 모드는 에이전트가 묻지 않고 할 수 있는 범위에 따라 색이 다릅니다.
-- **PROJECT** — 파일 트리. 에이전트가 건드린 파일과 폴더에 표시가 붙습니다(`●` 지금, `◐` 옅어지는 중). 건드린 파일은 알아서 펼쳐지고, 쓰겠다고 예고만 하고 아직 쓰지 않은 파일은 실제로 만들어질 때까지 흐리게 나옵니다.
+- **PROJECT** — 파일 트리. `▾`/`▸`로 펼친 폴더와 접힌 폴더를 구분하고, 에이전트가 건드린 파일과 폴더에 표시가 붙습니다(`●` 지금, `◐` 옅어지는 중). 건드린 파일은 알아서 펼쳐지고, 쓰겠다고 예고만 하고 아직 쓰지 않은 파일은 실제로 만들어질 때까지 흐리게 나옵니다.
 - **MISSION / NOW / NEXT / REPLY** — 프롬프트에서 뽑아낸 목표, 지금 하는 일과 걸린 시간(에이전트가 스스로 붙인 설명이 있으면 그것으로), 그리고 답변이 담긴 스크롤 가능한 칸. `MISSION` 아래 막대는 **에이전트가 직접 관리하는 작업 목록**을 세며, 목록을 안 쓰면 아예 나오지 않습니다. AgentLine이 완료율을 추측하는 일은 없습니다.
 - **세션 줄** — 모델, 컨텍스트 사용률, 사용량 한도. Claude Code 자체 상태줄과 같은 형식으로 적습니다. 전부 에이전트가 보고한 값이고, 여기서 측정하거나 추정한 것은 없습니다.
 - **ACTIVITY** — 최근 활동 기록. 시간이 지나면 흐려집니다.

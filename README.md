@@ -26,39 +26,39 @@ A real frame, rendered at 100×28 (colour stripped):
 
 ```text
 AGENTLINE   asks first                                                             ● CLAUDE  WORKING
-────────────────────────────────────────────────────────────────────────────────────────────────────
+───────────────────────────────────────┬────────────────────────────────────────────────────────────
 PROJECT ◂                              │ MISSION                                                    
                                        │ Add Git awareness to the header                            
-Assets/                              ● │ ████████████░░░░░░░░░░░░ 2/4                               
-├─ Scripts/                          ● │                                                            
-│  ├─ Core/                            │ NOW                                                        
-│  ├─ Player/                          │ Editing   3s                                               
-│  ├─ Puzzle/                        ● │ .../Puzzle/DrainSystem.cs                                  
-│  │  ├─ Valve.cs                      │                                                            
-│  │  └─ DrainSystem.cs              ● │ NEXT                                                       
-│  └─ Rooms/                         ◐ │ —                                                          
-│     └─ WaterRoom.cs                ◐ │                                                            
-├─ Prefabs/                            │                                                            
-├─ Scenes/                             │ Opus 5 | Context: 31% used                                 
-└─ Materials/                          │ 5h: 62% (reset 8/27 19:40) | 7d: 28% (reset 8/31 13:00)    
-────────────────────────────────────────────────────────────────────────────────────────────────────
+▾ Assets/                            ● │ ████████████░░░░░░░░░░░░ 2/4                               
+├─ ▾ Scripts/                        ● │                                                            
+│  ├─ ▾ Core/                          │ NOW                                                        
+│  ├─ ▾ Player/                        │ Editing   3s                                               
+│  ├─ ▾ Puzzle/                      ● │ .../Puzzle/DrainSystem.cs                                  
+│  │  ├─   Valve.cs                    │                                                            
+│  │  └─   DrainSystem.cs            ● │ NEXT                                                       
+│  └─ ▾ Rooms/                       ◐ │ —                                                          
+│     └─   WaterRoom.cs              ◐ │                                                            
+├─ ▾ Prefabs/                          │                                                            
+├─ ▾ Scenes/                           │ Opus 5 | Context: 31% used                                 
+└─ ▾ Materials/                        │ 5h: 62% (reset 8/27 19:40) | 7d: 28% (reset 8/31 13:00)    
+───────────────────────────────────────┴────────────────────────────────────────────────────────────
 ACTIVITY                                                                                            
-19:01  Working                                                                                      
-19:02  Reading   .../Rooms/WaterRoom.cs                                                             
-19:03  Running   Run the git package tests                                                          
-19:04  Done      Run the git package tests                                                          
-19:05  Editing   .../Puzzle/DrainSystem.cs                                                          
+20:53  Working                                                                                      
+20:54  Reading   .../Rooms/WaterRoom.cs                                                             
+20:55  Running   Run the git package tests                                                          
+20:56  Done      Run the git package tests                                                          
+20:57  Editing   .../Puzzle/DrainSystem.cs                                                          
                                                                                                     
                                                                                                     
                                                                                                     
 ────────────────────────────────────────────────────────────────────────────────────────────────────
-> Ask Claude Code...                                              enter inspect   tab focus   q quit
+> Ask claude...                                                   enter inspect   tab focus   q quit
 ```
 
 - **Header** — the agent, its status (`WORKING`, `WAITING`, `NEEDS INPUT`, `DONE`,
   `ERROR`) and the permission mode, coloured by how much the agent can do without asking.
-- **PROJECT** — the filesystem tree, with activity markers (`●` current, `◐` fading) on
-  the files and folders the agent has touched. Touched files are revealed automatically,
+- **PROJECT** — the filesystem tree, with `▾`/`▸` marking which folders are open and
+  activity markers (`●` current, `◐` fading) on the files and folders the agent has touched. Touched files are revealed automatically,
   and a file the agent has announced but not yet written is dimmed until it lands.
 - **MISSION / NOW / NEXT / REPLY** — the goal derived from your prompt, the action in
   flight with its elapsed time and the agent's own description of it, and a scrollable
