@@ -83,6 +83,10 @@ type Model struct {
 	// the character it is composing. Nil leaves the cursor alone.
 	caret *Caret
 
+	// alert reaches the user when the agent stops and needs an answer. Nil
+	// leaves the terminal quiet.
+	alert *Alert
+
 	tree   treeView
 	width  int
 	height int
@@ -125,6 +129,12 @@ func (m Model) WithStream(stream <-chan events.Event) Model {
 // composes where the text is rather than at the corner of the screen.
 func (m Model) WithCaret(caret *Caret) Model {
 	m.caret = caret
+	return m
+}
+
+// WithAlert lets AgentLine interrupt the user when the agent is blocked.
+func (m Model) WithAlert(alert *Alert) Model {
+	m.alert = alert
 	return m
 }
 
@@ -270,6 +280,13 @@ func (m Model) typing(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 func (m Model) navigating(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	l := computeLayout(m.width, m.height)
 
+	// A blocked agent takes the keys first. Nothing else on screen is waiting
+	// on an answer, and every key spent navigating while it waits is the agent
+	// sitting idle.
+	if cmd, handled := m.answering(msg); handled {
+		return m, cmd
+	}
+
 	switch msg.String() {
 	// Esc is reserved for cancelling and closing popups (§22), so it is
 	// deliberately not a quit key.
@@ -365,7 +382,15 @@ func (m *Model) applyEvent(e events.Event) {
 	if !e.Valid() {
 		return // ignore malformed input without disturbing the selection
 	}
+	blocked := m.st.Agent.Ask != nil
 	m.st.Apply(e)
+
+	// Raised on the edge, not the state: an ask that is still unanswered is
+	// still on screen, and ringing every time the clock redraws would train
+	// the user to ignore the one time it matters.
+	if !blocked && m.st.Agent.Ask != nil && m.alert != nil {
+		m.alert.Raise(askAlert(m.st.Agent.Ask))
+	}
 
 	if e.Path != "" && m.scanner != nil {
 		// Revealing inserts rows above the selection, so the cursor has to

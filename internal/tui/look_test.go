@@ -45,6 +45,10 @@ func TestLook(t *testing.T) {
 		{Type: events.FileEdit, Path: "Assets/Scripts/Puzzle/Valve.cs", Timestamp: now.Add(-90 * time.Second), Source: "claude-code"},
 		{Type: events.AgentError, Message: "go vet found an unused variable", Timestamp: now.Add(-60 * time.Second), Source: "claude-code"},
 		{Type: events.FileEdit, Path: "Assets/Scripts/Puzzle/DrainSystem.cs", Timestamp: now.Add(-4 * time.Second), Source: "claude-code"},
+		{Type: events.PermissionAsk, Timestamp: now, Source: "claude-code", Ask: &events.Ask{
+			ID: "req-1", Tool: "Write", Title: "Write", Target: "DrainSystem.cs", Mode: "acceptEdits",
+			Reason: "Claude requested permissions to edit Assets/Scripts/Puzzle/DrainSystem.cs which is a sensitive file.",
+		}},
 		{Type: events.SessionInfo, Timestamp: now, Source: "claude-code", Session: &events.Session{
 			Model:         "claude-opus-5-20260514",
 			ContextWindow: 200_000, ContextPercent: 0.31,

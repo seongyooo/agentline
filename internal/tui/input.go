@@ -26,6 +26,14 @@ type Controller interface {
 	RequestContextUsage() error
 }
 
+// Approver answers a permission request the agent is blocked on.
+//
+// Only a session AgentLine owns can be answered: watching one from the outside
+// means the question was never routed here, and there is nothing to reply to.
+type Approver interface {
+	Answer(id string, allow bool, message string) error
+}
+
 // askForContextUsage asks how full the context is, which only the agent can
 // answer: it knows the window it is measuring against.
 func (m Model) askForContextUsage() tea.Cmd {
@@ -85,6 +93,18 @@ func (m *Model) cyclePermissionMode() tea.Cmd {
 
 	return func() tea.Msg {
 		return modeChangedMsg{mode: next, err: controller.SetPermissionMode(next)}
+	}
+}
+
+// applyPermissionMode asks the session for one particular mode, which is what
+// accepting an agent's own suggestion means.
+func (m Model) applyPermissionMode(mode string) tea.Cmd {
+	controller, ok := m.sender.(Controller)
+	if !ok {
+		return nil
+	}
+	return func() tea.Msg {
+		return modeChangedMsg{mode: mode, err: controller.SetPermissionMode(mode)}
 	}
 }
 

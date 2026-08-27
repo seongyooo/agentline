@@ -58,7 +58,17 @@ func (m Model) missionPanel(l Layout) []string {
 
 	sections := []section{
 		{rank: 3, lines: m.missionLines(l.MissionWidth())},
-		{rank: 2, lines: now},
+	}
+	// While a question stands, NEEDS YOU is what the agent is doing. Showing
+	// NOW as well printed the same sentence twice, one line apart.
+	if m.st.Agent.Ask == nil {
+		sections = append(sections, section{rank: 2, lines: now})
+	}
+	// A blocked agent goes above everything and is never dropped to make
+	// room: a panel that hid the question would leave the session stopped
+	// with nothing on screen saying why.
+	if lines := m.askLines(l.MissionWidth()); lines != nil {
+		sections = append([]section{{rank: 0, lines: lines}}, sections...)
 	}
 	// The answer, in a box that scrolls. It sits beside MISSION rather than
 	// replacing it: progress is about the goal, the reply is about the turn.
@@ -792,6 +802,10 @@ func modeLabel(mode string) (string, lipgloss.Style) {
 // inputHint says what the keys do, which changes with focus.
 func (m Model) inputHint() string {
 	switch {
+	// Nothing else can be done that matters as much as unblocking the agent,
+	// so the bar says so even though the panel says it too.
+	case m.st.Agent.Ask != nil:
+		return askKeys(m.st.Agent.Ask) + "   q quit"
 	case m.picker.open:
 		return "← → choose   enter apply   esc cancel"
 	case m.inputFocused() && len(m.slashMatches()) > 0:

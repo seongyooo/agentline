@@ -129,6 +129,8 @@ func actionVerb(k state.ActionKind) string {
 		return "Running"
 	case state.ActionWaiting:
 		return "Waiting for input"
+	case state.ActionAsking:
+		return "Asking"
 	case state.ActionDone:
 		return "Done"
 	case state.ActionFailed:
@@ -152,7 +154,7 @@ func verbStyle(k state.ActionKind) lipgloss.Style {
 		return styleWarn
 	case state.ActionRunning, state.ActionWorking:
 		return styleWorking
-	case state.ActionWaiting:
+	case state.ActionWaiting, state.ActionAsking:
 		return styleWarn
 	}
 	return styleDim

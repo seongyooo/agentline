@@ -8,6 +8,7 @@ import (
 	"log"
 	"os"
 	"path/filepath"
+	"strings"
 	"time"
 
 	tea "github.com/charmbracelet/bubbletea"
@@ -38,6 +39,7 @@ func run() error {
 	addr := flag.String("addr", claude.DefaultAddr, "address to receive Claude Code hooks on")
 	interval := flag.Duration("mock-interval", 2*time.Second, "delay between mock events")
 	printHooks := flag.Bool("print-hooks", false, "print the hook settings to install in the observed project, then exit")
+	notify := flag.String("notify", "", "command to run when the agent needs an answer, for terminals that raise no notification of their own")
 	flag.Parse()
 
 	if *printHooks {
@@ -111,13 +113,17 @@ func run() error {
 	// until the syllable is finished.
 	caret := &tui.Caret{}
 
+	// The agent stopping to ask something is the one event worth reaching
+	// past the screen for. Everything else can wait to be looked at.
+	alert := &tui.Alert{NotifyCommand: strings.Fields(*notify)}
+
 	program := tea.NewProgram(
-		model.WithStream(stream).WithHint(hint).WithCaret(caret),
+		model.WithStream(stream).WithHint(hint).WithCaret(caret).WithAlert(alert),
 		tea.WithAltScreen(),
 		// Cells only, so the terminal's own text selection still works: a
 		// full motion grab would take copy-paste away from the user.
 		tea.WithMouseCellMotion(),
-		tea.WithOutput(caret.Writer(os.Stdout)),
+		tea.WithOutput(alert.Writer(caret.Writer(os.Stdout))),
 	)
 	_, err = program.Run()
 	return err
