@@ -4,6 +4,8 @@
 [![Go Reference](https://pkg.go.dev/badge/github.com/seongyooo/agentline.svg)](https://pkg.go.dev/github.com/seongyooo/agentline)
 [![MIT](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
 
+**English** · [한국어](README.ko.md)
+
 A terminal observability UI for AI coding agents.
 
 AgentLine answers four questions at a glance:
@@ -328,3 +330,9 @@ terminal widths all differ between them, so all three have to pass.
 Issues and pull requests are welcome. If you are adding support for another agent, the
 adapter seam is `internal/agent.Source`; `internal/agent/claude` is the worked example
 and `docs/hook-spike.md` shows how its behaviour was established.
+
+---
+
+## License
+
+[MIT](LICENSE)
