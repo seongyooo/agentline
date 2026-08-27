@@ -52,7 +52,7 @@ func TestViewRendersCoreSections(t *testing.T) {
 		"PROJECT", "Assets/", "DrainSystem.cs",
 		"MISSION", "Water Room Puzzle",
 		"NOW", "Editing", "NEXT", "ACTIVITY",
-		"Ask Claude Code",
+		"Ask ",
 	} {
 		if !strings.Contains(out, want) {
 			t.Errorf("view missing %q", want)

@@ -167,7 +167,7 @@ anything, but the prompt box is inert in that mode.
 | `--root` | detected from cwd | Project root |
 | `--run` | `false` | Launch and own a Claude Code session |
 | `--agent` | `claude` | Executable to run instead of `claude` |
-| `--source` | `claude` | Event source when not using `--run`: `claude` or `mock` |
+| `--source` | `claude` | Which agent: `claude`, `codex`, or `mock` |
 | `--addr` | `127.0.0.1:8787` | Address to receive hooks on |
 | `--mission` | — | Pin `MISSION` instead of deriving it from prompts |
 | `--print-hooks` | — | Print the hook settings to install, then exit |
@@ -201,10 +201,31 @@ the commands the session announced; `/model` opens a picker.
 
 ## Supported agents
 
-| Agent | Status |
-|---|---|
-| Claude Code | Supported — owned session (stream-JSON) or hooks |
-| Codex, Gemini CLI, OpenHands, … | Not implemented; the adapter seam exists |
+| Agent | How | Status |
+|---|---|---|
+| Claude Code | Owned session (stream-JSON), or hooks | Verified against real sessions |
+| Codex | `codex exec --json` | Built to the published schema; **not yet run against a real session** |
+| Gemini CLI | OTLP telemetry | Not implemented — see below |
+
+```sh
+agentline --run --source codex
+```
+
+Codex is a different shape to Claude Code: `codex exec` runs one turn and exits, so
+AgentLine keeps the thread it reports and resumes it on the next prompt. The conversation
+remembers, but there is no long-lived process. It reports a real exit code for commands
+and says whether a patch added, updated or deleted each file, so those read more precisely
+than the Claude adapter can manage.
+
+The adapter is written against Codex's published event schema and is covered end to end by
+a stand-in that speaks it, but nobody has yet pointed it at the real binary. Treat it as
+untested until someone has.
+
+**Gemini CLI** has no JSON or streaming output; its only structured channel is
+OpenTelemetry over gRPC, which emits exactly the right events — `user_prompt`, `tool_call`,
+`file.operation`. Receiving them means an OTLP/gRPC server and the protobuf definitions
+that go with it, which is a large dependency for a project that currently has three. It is
+feasible and mapped out, but not built.
 
 Adding an agent means writing one adapter that translates its output into the normalized
 event model. Nothing downstream of an adapter knows which agent it is watching.
@@ -215,8 +236,8 @@ event model. Nothing downstream of an adapter knows which agent it is watching.
 
 ```text
 Claude Code ──stream-json──┐
-                           ├──► internal/agent/claude ──► events.Event ──► state ──► tui
-Claude Code hooks ──HTTP───┘         (adapter)             (normalized)   (reducer)
+Claude Code hooks ──HTTP───┼──► internal/agent/... ──► events.Event ──► state ──► tui
+Codex ──────────────JSONL──┘        (adapters)          (normalized)   (reducer)
 ```
 
 | Package | Responsibility |
@@ -224,6 +245,7 @@ Claude Code hooks ──HTTP───┘         (adapter)             (normaliz
 | `cmd/agentline` | Flags, root detection, wiring, logging |
 | `internal/agent` | The `Source` seam and a mock backend |
 | `internal/agent/claude` | Claude Code adapter: hook server, owned session, translation |
+| `internal/agent/codex` | Codex adapter: one process per turn, resumed by thread id |
 | `internal/events` | The normalized, provider-neutral event model |
 | `internal/state` | The reducer — the only place state changes |
 | `internal/project` | Lazy filesystem scanner and tree model |

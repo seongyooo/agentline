@@ -14,6 +14,7 @@ import (
 
 	"github.com/seongyooo/agentline/internal/agent"
 	"github.com/seongyooo/agentline/internal/agent/claude"
+	"github.com/seongyooo/agentline/internal/agent/codex"
 	"github.com/seongyooo/agentline/internal/events"
 	"github.com/seongyooo/agentline/internal/project"
 	"github.com/seongyooo/agentline/internal/tui"
@@ -33,7 +34,7 @@ func run() error {
 	mission := flag.String("mission", "", "pin the MISSION panel to this goal instead of deriving it from the agent's prompts")
 	run := flag.Bool("run", false, "launch and own a Claude Code session, making the prompt box live")
 	agentBin := flag.String("agent", "", "executable to run instead of claude, for trying the UI without a real session")
-	sourceName := flag.String("source", "claude", `event source when not using --run: "claude" or "mock"`)
+	sourceName := flag.String("source", "claude", `which agent: "claude", "codex", or "mock"`)
 	addr := flag.String("addr", claude.DefaultAddr, "address to receive Claude Code hooks on")
 	interval := flag.Duration("mock-interval", 2*time.Second, "delay between mock events")
 	printHooks := flag.Bool("print-hooks", false, "print the hook settings to install in the observed project, then exit")
@@ -74,10 +75,11 @@ func run() error {
 
 	if *run {
 		// AgentLine owns the session, so the prompt box can submit to it.
-		session := claude.NewStream(root)
-		session.Bin = *agentBin
-
-		stream, err = session.Events(ctx)
+		var session sender
+		session, err = ownedSession(*sourceName, root, *agentBin)
+		if err == nil {
+			stream, err = session.Events(ctx)
+		}
 		if err == nil {
 			model = model.WithSender(session)
 			hint = "Session ready — press i to write a prompt"
@@ -128,6 +130,33 @@ func sourceHint(name, addr string) string {
 		return fmt.Sprintf("Waiting for Claude Code hooks on %s", addr)
 	}
 	return fmt.Sprintf("Waiting for the %s source", name)
+}
+
+// sender is a session AgentLine owns: one that streams what it does and
+// accepts prompts back.
+type sender interface {
+	agent.Source
+	tui.Sender
+}
+
+// ownedSession picks the backend to launch.
+//
+// Each agent is reached differently — Claude Code keeps one process alive
+// across turns, Codex runs one per turn and resumes a thread — but both
+// arrive here as the same two methods, which is what the adapter seam is for.
+func ownedSession(name, root, bin string) (sender, error) {
+	switch name {
+	case "claude":
+		session := claude.NewStream(root)
+		session.Bin = bin
+		return session, nil
+
+	case "codex":
+		session := codex.NewStream(root)
+		session.Bin = bin
+		return session, nil
+	}
+	return nil, fmt.Errorf("--run does not support the %q source", name)
 }
 
 // sourceConfig carries what the event sources need to start.

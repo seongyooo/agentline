@@ -126,11 +126,28 @@ func (m *Model) restartSession() tea.Cmd {
 // promptSentMsg reports the outcome of a submitted prompt.
 type promptSentMsg struct{ err error }
 
+// defaultPlaceholder is what the prompt says before any agent has been heard
+// from. Once one has, the placeholder names it: telling someone to ask Claude
+// Code while Codex is doing the work is a small lie the UI has no reason to
+// tell.
+const defaultPlaceholder = "Ask the agent..."
+
+// placeholder names the agent that is actually running.
+func (m Model) placeholder() string {
+	switch m.st.Agent.Agent {
+	case "", "—":
+		return defaultPlaceholder
+	case "claude-code":
+		return "Ask Claude Code..."
+	}
+	return "Ask " + m.st.Agent.Agent + "..."
+}
+
 // newInput builds the prompt field.
 func newInput() textinput.Model {
 	in := textinput.New()
 	in.Prompt = "> "
-	in.Placeholder = "Ask Claude Code..."
+	in.Placeholder = defaultPlaceholder
 	in.CharLimit = 2000
 	return in
 }

@@ -180,8 +180,35 @@ func TestObserverModeHasNoLivePrompt(t *testing.T) {
 			t.Fatal("tab cycled onto a prompt that cannot send")
 		}
 	}
-	if out := ansi.Strip(m.View()); !strings.Contains(out, "Ask Claude Code") {
+	if out := ansi.Strip(m.View()); !strings.Contains(out, "Ask ") {
 		t.Errorf("placeholder missing:\n%s", out)
+	}
+}
+
+// The prompt names the agent that is actually running. Telling someone to ask
+// Claude Code while Codex is doing the work is a small lie with no reason.
+func TestPlaceholderNamesTheRunningAgent(t *testing.T) {
+	tests := []struct {
+		agent string
+		want  string
+	}{
+		{"", "Ask the agent..."},
+		{"claude-code", "Ask Claude Code..."},
+		{"codex", "Ask codex..."},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.agent, func(t *testing.T) {
+			m, _ := sendable(t)
+			if tc.agent != "" {
+				m.st.Agent.Agent = tc.agent
+			} else {
+				m.st.Agent.Agent = "—"
+			}
+			if got := m.placeholder(); got != tc.want {
+				t.Errorf("placeholder = %q, want %q", got, tc.want)
+			}
+		})
 	}
 }
 

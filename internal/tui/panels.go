@@ -650,7 +650,7 @@ func (m Model) inputBar(width int) string {
 // session, dimmed and inert when it is only watching one.
 func (m Model) promptField(width int) string {
 	if !m.canSend() {
-		return fitLine(styleDim.Render("> Ask Claude Code..."), width)
+		return fitLine(styleDim.Render("> "+m.placeholder()), width)
 	}
 	if m.sendErr != nil {
 		return fitLine(styleError.Render("> "+firstLine(m.sendErr.Error())), width)
@@ -691,7 +691,7 @@ func (m Model) placeCaret(field string) {
 func (m Model) promptText(width int) string {
 	value := m.input.Value()
 	if value == "" && !m.inputFocused() {
-		return styleDim.Render(m.input.Placeholder)
+		return styleDim.Render(m.placeholder())
 	}
 
 	visible := max(width-ansi.StringWidth(m.input.Prompt)-1, 4)

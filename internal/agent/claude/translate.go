@@ -1,10 +1,10 @@
 package claude
 
 import (
-	"path/filepath"
 	"strings"
 	"time"
 
+	"github.com/seongyooo/agentline/internal/agent"
 	"github.com/seongyooo/agentline/internal/events"
 )
 
@@ -130,25 +130,10 @@ func fileEventType(tool string) (events.Type, bool) {
 	return "", false
 }
 
-// relative converts an absolute hook path to a root-relative slash path.
-//
-// Hook payloads carry full OS paths, while the event model and the project
-// tree use root-relative slash paths. Anything outside the project returns
-// empty so it is dropped rather than displayed under a path it does not have.
+// relative converts a path the agent reported into a root-relative one. The
+// rule is shared with the other adapters so it cannot drift between them.
 func (t *translator) relative(p string) string {
-	if p == "" || t.root == "" {
-		return ""
-	}
-
-	rel, err := filepath.Rel(t.root, p)
-	if err != nil {
-		return ""
-	}
-	rel = filepath.ToSlash(rel)
-	if rel == ".." || strings.HasPrefix(rel, "../") {
-		return ""
-	}
-	return rel
+	return agent.RelativePath(t.root, p)
 }
 
 func (t *translator) event(kind events.Type, set func(*events.Event)) events.Event {

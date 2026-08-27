@@ -26,6 +26,14 @@ import (
 )
 
 func main() {
+	// `codex exec` takes its prompt as an argument and speaks a different
+	// protocol, so the stand-in has to be told which agent it is pretending
+	// to be. AgentLine passes the same arguments it would pass the real one.
+	if len(os.Args) > 1 && os.Args[1] == "exec" {
+		codexTurn(os.Args[1:])
+		return
+	}
+
 	agent := &agent{
 		model:      "claude-opus-5-20260514",
 		permission: "default",
