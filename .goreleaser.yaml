@@ -22,8 +22,23 @@ builds:
     ldflags:
       - -s -w -X main.version={{.Version}}
 
+  # The stand-in ships too. Trying AgentLine otherwise means starting a real
+  # session, and a UI you cannot look at without spending money is one most
+  # people will not look at. It speaks the same protocol on the same pipes, so
+  # it drives the real adapter — only the thinking is missing.
+  - id: fakeagent
+    main: ./cmd/fakeagent
+    binary: fakeagent
+    env:
+      - CGO_ENABLED=0
+    goos: [linux, darwin, windows]
+    goarch: [amd64, arm64]
+    ldflags:
+      - -s -w
+
 archives:
-  - formats: [tar.gz]
+  - ids: [agentline, fakeagent]
+    formats: [tar.gz]
     # Windows users are far more likely to have something that opens a zip
     # than something that opens a tar.gz.
     format_overrides:

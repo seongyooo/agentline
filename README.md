@@ -170,16 +170,29 @@ session belongs to your terminal, not to AgentLine.
 
 ### 3. Try it without spending anything
 
+`fakeagent` ships beside `agentline` in every release, so this needs nothing installed:
+
 ```sh
-go build -o fakeagent ./cmd/fakeagent
-agentline --run --agent ./fakeagent --root /some/scratch/dir
+agentline --run --agent fakeagent --root /some/scratch/dir
 ```
 
-`fakeagent` speaks the same streaming-JSON protocol on the same pipes, so this drives the
-real adapter, the real process handling and the real control requests — only the thinking
-is missing. It reads and writes the files it is pointed at for real, so the tree and the
+It speaks the same streaming-JSON protocol on the same pipes, so this drives the real
+adapter, the real process handling and the real control requests — only the thinking is
+missing. It reads and writes the files it is pointed at for real, so the tree and the
 activity log behave as they would during a session that costs money. Point it at a
 scratch directory: it creates a file.
+
+Every state AgentLine can be in is reachable from the prompt box, because the stand-in
+really does the thing rather than announcing it:
+
+| Say | What it does |
+|---|---|
+| `spin on it` | Rewrites one file and fails one command over and over, until `SPINNING` |
+| `ask permission first` | Stops and asks, so you can answer with `y`, `n` or `a` |
+| `make it fail` | A command that fails |
+| `run the tests` | A command that passes |
+| `write the readme` | Creates a file, so the tree fills in |
+| anything else | An edit and a build |
 
 There is also `agentline --source mock`, which replays sample activity without launching
 anything, but the prompt box is inert in that mode.
