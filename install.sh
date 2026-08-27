@@ -102,10 +102,22 @@ main() {
 
 	echo "installed $bindir/agentline"
 
-	# Saying so now beats the command appearing not to exist afterwards.
+	# A script run through a pipe cannot change the shell that called it, so
+	# the most it can do is hand over the exact line that fixes it. Saying so
+	# now beats the command appearing not to exist afterwards.
 	case ":$PATH:" in
-	*":$bindir:"*) ;;
-	*) echo "note: $bindir is not on your PATH — add it to use 'agentline' by name" ;;
+	*":$bindir:"*)
+		echo ""
+		echo "ready - try: agentline --run"
+		;;
+	*)
+		echo ""
+		echo "$bindir is not on your PATH. To use 'agentline' by name:"
+		echo ""
+		echo "  export PATH=\"$bindir:\$PATH\""
+		echo ""
+		echo "Add that line to your shell profile (~/.zshrc, ~/.bashrc) to keep it."
+		;;
 	esac
 }
 

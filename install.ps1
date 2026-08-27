@@ -57,6 +57,18 @@ Write-Host "installed $bindir\agentline.exe"
 # tomorrow and one that only works if you remember where it went.
 $userPath = [Environment]::GetEnvironmentVariable('PATH', 'User')
 if ($userPath -notlike "*$bindir*") {
-    [Environment]::SetEnvironmentVariable('PATH', "$userPath;$bindir", 'User')
-    Write-Host "added $bindir to your PATH — open a new terminal to use 'agentline'"
+    $userPath = if ($userPath) { "$userPath;$bindir" } else { $bindir }
+    [Environment]::SetEnvironmentVariable('PATH', $userPath, 'User')
+    Write-Host "added $bindir to your PATH"
 }
+
+# The stored PATH only reaches processes started from here on. This script is
+# run with `iex`, so it is inside the session the user is about to type into,
+# and can fix that session too — otherwise the very next command they try is
+# the one that fails.
+if ($env:PATH -notlike "*$bindir*") {
+    $env:PATH = "$env:PATH;$bindir"
+}
+
+Write-Host ""
+Write-Host "ready - try: agentline --run"
