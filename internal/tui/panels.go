@@ -297,15 +297,7 @@ func (m Model) treeHeading(width, total, visible int) string {
 
 // treeRow renders one tree entry with its activity marker at the right edge.
 func (m Model) treeRow(row project.Row, width int, now time.Time, selected bool) string {
-	name := row.Node.Name
-	if row.Node.Dir {
-		name += "/"
-	}
-	label := row.Prefix + name
-	if row.Node.Err != nil {
-		label += " (unreadable)"
-	}
-
+	label := treeLabel(row)
 	marker, markerStyle := m.rowMarker(row.Node, now)
 
 	// The selected row is drawn in reverse video across the full column, so
@@ -325,21 +317,61 @@ func (m Model) treeRow(row project.Row, width int, now time.Time, selected bool)
 
 	// A file the agent has claimed but not yet written is dimmed, so it can be
 	// seen arriving without being mistaken for one that exists.
-	if m.st.Pending(row.Node.Path) {
-		if marker == "" {
-			return stylePending.Render(fitLine(label, width))
-		}
-		return stylePending.Render(fitLine(label, width-2)) + " " + markerStyle.Render(marker)
+	body := treeBody(row)
+	switch {
+	case m.st.Pending(row.Node.Path):
+		body = stylePending.Render(label)
+	case row.Node.Placeholder:
+		body = styleDim.Render(label)
 	}
 
-	switch {
-	case row.Node.Placeholder:
-		return styleDim.Render(fitLine(label, width))
-	case marker == "":
-		return fitLine(label, width)
-	default:
-		return fitLine(label, width-2) + " " + markerStyle.Render(marker)
+	if marker == "" {
+		return fitLine(body, width)
 	}
+	return fitLine(body, width-2) + " " + markerStyle.Render(marker)
+}
+
+// treeLabel is a row as plain text: its box-drawing prefix, its disclosure
+// mark, and the name.
+func treeLabel(row project.Row) string {
+	return row.Prefix + treeMark(row.Node) + treeName(row.Node)
+}
+
+// treeBody is the same text with the structure pushed behind the content: the
+// box drawing recedes to chrome and the directory names carry the weight, so
+// the shape of the tree is read without the lines competing with the names.
+func treeBody(row project.Row) string {
+	style := styleFile
+	if row.Node.Dir {
+		style = styleDir
+	}
+	return styleTree.Render(row.Prefix+treeMark(row.Node)) + style.Render(treeName(row.Node))
+}
+
+// treeName is what the entry is called, with the slash that says it is a
+// directory and the note that says it could not be read.
+func treeName(n *project.Node) string {
+	name := n.Name
+	if n.Dir {
+		name += "/"
+	}
+	if n.Err != nil {
+		name += " (unreadable)"
+	}
+	return name
+}
+
+// treeMark says whether a directory is open or closed, which the trailing
+// slash does not. Files spend the same two columns on nothing, so the names
+// stay aligned down the panel instead of stepping in and out.
+func treeMark(n *project.Node) string {
+	if !n.Dir || n.Placeholder {
+		return "  "
+	}
+	if n.Expanded {
+		return "▾ "
+	}
+	return "▸ "
 }
 
 // rowMarker picks the single symbol shown at the right of a tree row.
@@ -374,10 +406,22 @@ func (m Model) activityPanel(l Layout) []string {
 
 	lines := []string{m.panelHeading("ACTIVITY", focusActivity, len(all), rows, start, m.width)}
 	for _, a := range all[start:end] {
-		entry := fmt.Sprintf("%s  %-9s %s", a.At.Format("15:04"), actionVerb(a.Kind), activityDetail(a))
-		lines = append(lines, styleDim.Render(strings.TrimRight(entry, " ")))
+		lines = append(lines, activityLine(a))
 	}
 	return lines
+}
+
+// activityLine renders one log entry in three weights: the time is the least
+// of it, the verb is coloured by what it did, and the target is left plain
+// because it is the part being scanned for.
+func activityLine(a state.Action) string {
+	line := styleDim.Render(a.At.Format("15:04")) + "  " +
+		verbStyle(a.Kind).Render(fmt.Sprintf("%-9s", actionVerb(a.Kind)))
+
+	if detail := activityDetail(a); detail != "" {
+		return line + " " + detail
+	}
+	return strings.TrimRight(line, " ")
 }
 
 // activityMaxScroll is how far back the log can be scrolled.
@@ -560,7 +604,7 @@ func (m Model) nowLines() []string {
 	}
 
 	action := m.st.Agent.Now
-	verb := actionVerb(action.Kind)
+	verb := verbStyle(action.Kind).Bold(true).Render(actionVerb(action.Kind))
 	// How long the current action has been running is the one progress signal
 	// that is always observable, and it is what separates slow from stuck.
 	if elapsed := m.elapsed(action); elapsed != "" {
@@ -616,8 +660,15 @@ func progressBar(p state.Progress, width int) string {
 	bars := clamp(width-len(count)-1, 4, 24)
 	filled := int(p.Fraction() * float64(bars))
 
-	bar := strings.Repeat("█", filled) + strings.Repeat("░", bars-filled)
-	return styleWorking.Render(bar) + " " + count
+	// The two halves are styled apart, so the bar reads as a proportion at a
+	// glance rather than as one coloured block, and it turns green once the
+	// last task is done.
+	fill := styleBarFill
+	if p.Done >= p.Total {
+		fill = styleBarDone
+	}
+	bar := fill.Render(strings.Repeat("█", filled)) + styleBarRest.Render(strings.Repeat("░", bars-filled))
+	return bar + " " + styleValue.Render(count)
 }
 
 // displayTarget renders an action's target, abbreviating it only when it is
@@ -634,7 +685,7 @@ func displayTarget(a state.Action) string {
 func (m Model) inputBar(width int) string {
 	hint := styleDim.Render(m.inputHint())
 	if branch := m.branchLabel(); branch != "" {
-		hint = styleDim.Render(branch+"   ") + hint
+		hint = branchStyled(branch) + styleDim.Render("   ") + hint
 	}
 
 	prompt := m.promptField(width - ansi.StringWidth(hint) - 2)
@@ -660,10 +711,16 @@ func (m Model) promptField(width int) string {
 	// character count. Korean and other CJK text takes two cells per
 	// character, so a widget-padded field runs two cells past its box for
 	// every Hangul syllable and the line wraps around the screen.
-	field := m.input.Prompt + m.promptText(width)
+	field := promptMark(m.input.Prompt) + m.promptText(width)
 	m.placeCaret(field)
 
 	return fitLine(field, width)
+}
+
+// promptMark colours the caret marker, so the one live input on the screen is
+// findable without reading the bar.
+func promptMark(mark string) string {
+	return styleFocus.Render(mark)
 }
 
 // placeCaret puts the terminal cursor after the text being typed.
@@ -780,6 +837,16 @@ func (m Model) branchLabel() string {
 		branch += "*"
 	}
 	return branch
+}
+
+// branchStyled colours the dirty marker rather than the branch name, so
+// uncommitted work registers at the edge of the eye without the name having to
+// be read at all.
+func branchStyled(branch string) string {
+	if name, ok := strings.CutSuffix(branch, "*"); ok {
+		return styleDim.Render(name) + styleWarn.Render("*")
+	}
+	return styleDim.Render(branch)
 }
 
 // rule renders a full-width horizontal separator.

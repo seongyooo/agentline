@@ -21,10 +21,10 @@ func (m Model) View() string {
 	l := computeLayout(m.width, m.height)
 	now := time.Now()
 
-	lines := []string{m.header(m.width), rule(m.width)}
+	lines := []string{m.header(m.width), m.rule(l, '┬')}
 	lines = append(lines, m.body(l, now)...)
 	if l.ActivityRows > 0 {
-		lines = append(lines, rule(m.width))
+		lines = append(lines, m.rule(l, '┴'))
 		lines = append(lines, fit(m.activityPanel(l), m.width, l.ActivityHeight()-1)...)
 	}
 	// An open choice and the commands still matching both take the rule's
@@ -35,11 +35,31 @@ func (m Model) View() string {
 	case m.slashHint(m.width) != "":
 		lines = append(lines, fitLine(styleDim.Render(m.slashHint(m.width)), m.width))
 	default:
+		// With no activity log the body runs to the bottom, so this is the
+		// rule that closes the tree's divider.
+		if l.ActivityRows == 0 {
+			lines = append(lines, m.rule(l, '┴'))
+			break
+		}
 		lines = append(lines, rule(m.width))
 	}
 	lines = append(lines, m.inputBar(m.width))
 
 	return strings.Join(lines, "\n")
+}
+
+// rule renders a separator across the frame, joined to the tree's divider
+// where it crosses it. The junction costs nothing and is the difference
+// between a drawn frame and three unrelated lines lying across the screen.
+func (m Model) rule(l Layout, junction rune) string {
+	at := l.TreeWidth + 1
+	if !l.ShowTree || at >= m.width {
+		return rule(m.width)
+	}
+
+	line := []rune(strings.Repeat("─", m.width))
+	line[at] = junction
+	return styleRule.Render(string(line))
 }
 
 // body renders the mission panel, beside the project tree when there is room.

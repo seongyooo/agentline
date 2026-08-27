@@ -8,23 +8,52 @@ import (
 	"github.com/seongyooo/agentline/internal/state"
 )
 
-// Color carries state, never decoration, and never meaning on its own: every
-// styled element is also distinguishable by symbol or position.
+// The palette is small on purpose. Four state colours carry meaning — busy,
+// good, warning, failure — and two greys carry none: one for chrome the eye
+// should skip over, one for text that is real but secondary.
+//
+// Every colour is adaptive, so the greys stay grey on a light terminal instead
+// of washing out, and none of them is load-bearing: each styled element is
+// also distinguishable by symbol, position, or weight.
 var (
-	styleTitle    = lipgloss.NewStyle().Bold(true)
-	styleLabel    = lipgloss.NewStyle().Faint(true)
+	// Chrome: rules, dividers, the tree's box drawing. Deliberately the
+	// quietest thing on screen.
+	colorChrome = lipgloss.AdaptiveColor{Light: "252", Dark: "238"}
+	// Secondary text: timestamps, paths, hints. Quiet but still readable.
+	colorSubtle = lipgloss.AdaptiveColor{Light: "245", Dark: "245"}
+
+	colorAccent = lipgloss.AdaptiveColor{Light: "26", Dark: "39"}   // busy, focus
+	colorOK     = lipgloss.AdaptiveColor{Light: "28", Dark: "42"}   // finished, safe
+	colorWarn   = lipgloss.AdaptiveColor{Light: "130", Dark: "179"} // changed, nearly full
+	colorError  = lipgloss.AdaptiveColor{Light: "160", Dark: "203"} // failed, unrestricted
+)
+
+var (
+	styleTitle    = lipgloss.NewStyle().Bold(true).Foreground(colorAccent)
+	styleLabel    = lipgloss.NewStyle().Bold(true).Foreground(colorSubtle)
 	styleValue    = lipgloss.NewStyle().Bold(true)
-	styleDim      = lipgloss.NewStyle().Faint(true)
-	styleRule     = lipgloss.NewStyle().Faint(true)
+	styleDim      = lipgloss.NewStyle().Foreground(colorSubtle)
+	styleRule     = lipgloss.NewStyle().Foreground(colorChrome)
 	styleSelected = lipgloss.NewStyle().Reverse(true)
 	// Files claimed but not yet written are dimmed, so they can be seen
 	// arriving without reading as files that already exist.
-	stylePending = lipgloss.NewStyle().Faint(true)
-	styleFocus   = lipgloss.NewStyle().Bold(true)
-	styleWorking = lipgloss.NewStyle().Foreground(lipgloss.Color("4"))
-	styleOK      = lipgloss.NewStyle().Foreground(lipgloss.Color("2"))
-	styleWarn    = lipgloss.NewStyle().Foreground(lipgloss.Color("3"))
-	styleError   = lipgloss.NewStyle().Foreground(lipgloss.Color("1"))
+	stylePending = lipgloss.NewStyle().Faint(true).Foreground(colorSubtle)
+	styleFocus   = lipgloss.NewStyle().Bold(true).Foreground(colorAccent)
+	styleWorking = lipgloss.NewStyle().Foreground(colorAccent)
+	styleOK      = lipgloss.NewStyle().Foreground(colorOK)
+	styleWarn    = lipgloss.NewStyle().Foreground(colorWarn)
+	styleError   = lipgloss.NewStyle().Foreground(colorError)
+
+	// The tree's box drawing is structure, not content: it recedes so the
+	// names sit in front of it.
+	styleTree = lipgloss.NewStyle().Foreground(colorChrome)
+	styleDir  = lipgloss.NewStyle().Bold(true)
+	styleFile = lipgloss.NewStyle()
+
+	// The filled part of a progress bar against the part still to do.
+	styleBarFill = lipgloss.NewStyle().Foreground(colorAccent)
+	styleBarDone = lipgloss.NewStyle().Foreground(colorOK)
+	styleBarRest = lipgloss.NewStyle().Foreground(colorChrome)
 )
 
 // statusLabel maps a status to a symbol, text, and style. The symbol carries
@@ -64,7 +93,7 @@ func gitMarker(s git.FileStatus) (string, lipgloss.Style) {
 	case git.Modified:
 		return "M", styleWarn
 	case git.Untracked:
-		return "+", styleDim
+		return "+", styleOK
 	}
 	return "", styleDim
 }
@@ -106,4 +135,25 @@ func actionVerb(k state.ActionKind) string {
 		return "Failed"
 	}
 	return "Idle"
+}
+
+// verbStyle colours an action by what it does to the project, so a log of a
+// dozen lines can be read by shape before it is read by word: writes stand out
+// from reads, and a failure stands out from both.
+func verbStyle(k state.ActionKind) lipgloss.Style {
+	switch k {
+	case state.ActionFailed:
+		return styleError
+	case state.ActionDeleting:
+		return styleError
+	case state.ActionDone:
+		return styleOK
+	case state.ActionWriting, state.ActionEditing, state.ActionCreating:
+		return styleWarn
+	case state.ActionRunning, state.ActionWorking:
+		return styleWorking
+	case state.ActionWaiting:
+		return styleWarn
+	}
+	return styleDim
 }
