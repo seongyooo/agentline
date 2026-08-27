@@ -5,6 +5,7 @@ import (
 	"os"
 	"path"
 	"path/filepath"
+	"runtime"
 	"sort"
 	"strings"
 )
@@ -33,15 +34,30 @@ var noisyDirs = map[string]bool{
 	"Temp":         true, // Unity
 }
 
+// userHomeDir is a variable so the ceiling can be moved in tests.
+var userHomeDir = os.UserHomeDir
+
 // FindRoot walks up from start looking for a project marker, falling back to
 // start itself when none is found.
+//
+// The walk stops at the home directory without looking at it. Nobody's project
+// is their whole home directory, but plenty of people have a stray package.json
+// or .git sitting in it — one `npm install` in the wrong terminal is enough —
+// and treating that as a marker swallows whatever directory they actually meant
+// into a tree of everything they own. A ceiling costs one comparison and rules
+// the whole class out.
 func FindRoot(start string) string {
 	dir, err := filepath.Abs(start)
 	if err != nil {
 		return start
 	}
+	start = dir // always answer with an absolute path, whatever was passed in
 
+	ceiling := homeDir()
 	for {
+		if ceiling != "" && sameDir(dir, ceiling) {
+			return start
+		}
 		for _, marker := range rootMarkers {
 			if _, err := os.Stat(filepath.Join(dir, marker)); err == nil {
 				return dir
@@ -53,6 +69,30 @@ func FindRoot(start string) string {
 		}
 		dir = parent
 	}
+}
+
+// homeDir is the ceiling for the search, or "" when it cannot be determined —
+// in which case the walk behaves as it did before and runs to the filesystem
+// root rather than stopping somewhere arbitrary.
+func homeDir() string {
+	home, err := userHomeDir()
+	if err != nil || home == "" {
+		return ""
+	}
+	abs, err := filepath.Abs(home)
+	if err != nil {
+		return ""
+	}
+	return abs
+}
+
+// sameDir compares two cleaned absolute paths, ignoring case on the platforms
+// where the filesystem does.
+func sameDir(a, b string) bool {
+	if runtime.GOOS == "windows" {
+		return strings.EqualFold(a, b)
+	}
+	return a == b
 }
 
 // Scanner reads project directories on demand.

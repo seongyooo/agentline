@@ -167,6 +167,76 @@ func TestFindRootDetectsMarker(t *testing.T) {
 	}
 }
 
+// stubHome moves the ceiling the root search stops at.
+func stubHome(t *testing.T, home string) {
+	t.Helper()
+
+	previous := userHomeDir
+	userHomeDir = func() (string, error) { return home, nil }
+	t.Cleanup(func() { userHomeDir = previous })
+}
+
+// A stray marker in the home directory must not swallow the directory the user
+// actually pointed at. This is a real report: one package.json left behind by
+// an npm install run in the wrong terminal made every scratch folder on the
+// machine resolve to the whole home directory.
+func TestFindRootStopsAtHome(t *testing.T) {
+	home := t.TempDir()
+	if err := os.WriteFile(filepath.Join(home, "package.json"), []byte("{}"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	stubHome(t, home)
+
+	scratch := filepath.Join(home, "Desktop", "scratch")
+	if err := os.MkdirAll(scratch, 0o755); err != nil {
+		t.Fatal(err)
+	}
+
+	if got := FindRoot(scratch); !sameDir(got, scratch) {
+		t.Errorf("FindRoot = %q, want %q", got, scratch)
+	}
+}
+
+// The ceiling must not cost us the markers that are real. A project under home
+// is the normal case, not the exception.
+func TestFindRootPrefersAMarkerBelowHome(t *testing.T) {
+	home := t.TempDir()
+	if err := os.WriteFile(filepath.Join(home, "package.json"), []byte("{}"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	stubHome(t, home)
+
+	project := filepath.Join(home, "code", "app")
+	if err := os.MkdirAll(filepath.Join(project, "src"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(project, "go.mod"), []byte("module app\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	if got := FindRoot(filepath.Join(project, "src")); !sameDir(got, project) {
+		t.Errorf("FindRoot = %q, want %q", got, project)
+	}
+}
+
+// Everything downstream joins paths onto the root and compares them against
+// absolute ones, so the fallback has to be absolute too — not whatever the
+// caller happened to type.
+func TestFindRootAnswersWithAnAbsolutePath(t *testing.T) {
+	home := t.TempDir()
+	stubHome(t, home)
+
+	scratch := filepath.Join(home, "scratch")
+	if err := os.MkdirAll(scratch, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	t.Chdir(scratch)
+
+	if got := FindRoot("."); !filepath.IsAbs(got) {
+		t.Errorf("FindRoot(%q) = %q, want an absolute path", ".", got)
+	}
+}
+
 func TestFindRootFallsBackToStart(t *testing.T) {
 	bare := t.TempDir() // no project marker anywhere above it in the temp tree
 	if got := FindRoot(bare); got != bare && !strings.HasPrefix(bare, got) {
