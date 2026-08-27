@@ -203,20 +203,51 @@ func TestUserPromptSubmitWithoutTextMarksWorking(t *testing.T) {
 	}
 }
 
-// PreToolUse only means "about to": a tool can still be denied, so announcing
-// a file change before it happens would report activity that never occurred.
-func TestFileToolsAreNotAnnouncedBeforeTheyRun(t *testing.T) {
-	for _, tool := range []string{"Read", "Edit", "Write", "NotebookEdit"} {
+// PreToolUse only means "about to", and a write can still be denied. So a
+// write is announced as claimed rather than done, which is what lets the file
+// appear in the tree while it is being written without ever claiming a change
+// that did not happen.
+func TestWritesAreAnnouncedAsPendingNotDone(t *testing.T) {
+	for _, tool := range []string{"Edit", "Write", "NotebookEdit"} {
 		t.Run(tool, func(t *testing.T) {
-			got := tr().translate(payload{
+			got := only(t, tr().translate(payload{
 				HookEventName: hookPreToolUse,
 				ToolName:      tool,
 				ToolInput:     toolInput{FilePath: filepath.Join(root, "x.go")},
-			})
-			if got != nil {
-				t.Errorf("got %+v, want nothing before the tool has run", got)
+			}))
+
+			if got.Type != events.FilePending {
+				t.Errorf("Type = %q, want %q", got.Type, events.FilePending)
+			}
+			if got.Path != "x.go" {
+				t.Errorf("Path = %q, want x.go", got.Path)
 			}
 		})
+	}
+}
+
+// A read changes nothing, so there is nothing to show before it happens.
+func TestReadsAreNotAnnouncedBeforeTheyRun(t *testing.T) {
+	got := tr().translate(payload{
+		HookEventName: hookPreToolUse,
+		ToolName:      "Read",
+		ToolInput:     toolInput{FilePath: filepath.Join(root, "x.go")},
+	})
+	if got != nil {
+		t.Errorf("got %+v, want nothing before a read has run", got)
+	}
+}
+
+// A write outside the project is dropped rather than claimed under a path it
+// does not have.
+func TestPendingWriteOutsideProjectIsDropped(t *testing.T) {
+	got := tr().translate(payload{
+		HookEventName: hookPreToolUse,
+		ToolName:      "Write",
+		ToolInput:     toolInput{FilePath: `C:\elsewhere\secret.txt`},
+	})
+	if got != nil {
+		t.Errorf("got %+v, want nothing for a write outside the project", got)
 	}
 }
 

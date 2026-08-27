@@ -4,7 +4,9 @@
 // Nothing downstream of an adapter may depend on provider-specific formats.
 package events
 
-import "time"
+import (
+	"time"
+)
 
 // Type identifies what an agent observably did.
 type Type string
@@ -26,6 +28,15 @@ const (
 	// AgentReply is what the agent said back, in Message. AgentView shows
 	// only enough of it to know the turn landed; it is not a transcript.
 	AgentReply Type = "agent_reply"
+
+	// FilePending marks a file the agent has said it is about to write. The
+	// write has not happened yet and may still be refused, so it is shown as
+	// claimed rather than done, and is cleared either way.
+	FilePending Type = "file_pending"
+
+	// SessionInfo reports what the agent told AgentView about the session
+	// itself: the model, and how much of a rate limit is used.
+	SessionInfo Type = "session_info"
 
 	// TaskProgress reports the agent's own task list, in Done and Total.
 	// It is a count of what the agent said it planned and finished — never
@@ -71,6 +82,26 @@ type Event struct {
 	// Done and Total carry a TaskProgress count.
 	Done  int `json:"done,omitempty"`
 	Total int `json:"total,omitempty"`
+
+	// Session carries a SessionInfo report.
+	Session *Session `json:"session,omitempty"`
+}
+
+// Session is what the agent reported about the session it is running.
+type Session struct {
+	Model string `json:"model,omitempty"`
+
+	// Limit names a usage window the agent reported, e.g. "five_hour".
+	Limit string `json:"limit,omitempty"`
+
+	// Used is how much of that window is consumed, between 0 and 1.
+	Used float64 `json:"used,omitempty"`
+
+	// ResetsAt is when the window rolls over, zero if not reported.
+	ResetsAt time.Time `json:"resets_at,omitempty"`
+
+	// Overage marks usage beyond the included allowance.
+	Overage bool `json:"overage,omitempty"`
 }
 
 // Valid reports whether the event carries the fields its Type requires.
@@ -80,8 +111,10 @@ func (e Event) Valid() bool {
 		return false
 	}
 	switch e.Type {
-	case FileRead, FileEdit, FileCreate, FileDelete:
+	case FileRead, FileEdit, FileCreate, FileDelete, FilePending:
 		return e.Path != ""
+	case SessionInfo:
+		return e.Session != nil
 	case CommandStart, CommandEnd:
 		return e.Command != ""
 	case AgentStatus:

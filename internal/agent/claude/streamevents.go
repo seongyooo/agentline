@@ -16,6 +16,18 @@ type streamEvent struct {
 	Subtype string        `json:"subtype"`
 	Message streamMessage `json:"message"`
 	IsError bool          `json:"is_error"`
+
+	// Model is reported when a turn starts.
+	Model string `json:"model"`
+
+	// RateLimit is reported as usage accumulates.
+	RateLimit *struct {
+		Status         string  `json:"status"`
+		RateLimitType  string  `json:"rateLimitType"`
+		Utilization    float64 `json:"utilization"`
+		ResetsAt       int64   `json:"resetsAt"`
+		IsUsingOverage bool    `json:"isUsingOverage"`
+	} `json:"rate_limit_info"`
 }
 
 type streamMessage struct {
@@ -46,6 +58,10 @@ type streamTranslator struct {
 	*translator
 	pending map[string]streamBlock
 	tasks   *taskList
+
+	// lastSession carries session facts forward, since each report names
+	// only what changed.
+	lastSession *events.Session
 }
 
 func newStreamTranslator(root string) *streamTranslator {
@@ -75,10 +91,40 @@ func (t *streamTranslator) translateLine(line []byte) []events.Event {
 		return []events.Event{t.status(events.StatusWaiting)}
 	case "system":
 		if e.Subtype == "init" {
-			return []events.Event{t.status(events.StatusWorking)}
+			out := []events.Event{t.status(events.StatusWorking)}
+			if e.Model != "" {
+				out = append(out, t.session(func(s *events.Session) { s.Model = e.Model }))
+			}
+			return out
 		}
+
+	case "rate_limit_event":
+		if e.RateLimit == nil {
+			return nil
+		}
+		return []events.Event{t.session(func(s *events.Session) {
+			s.Limit = e.RateLimit.RateLimitType
+			s.Used = e.RateLimit.Utilization
+			s.Overage = e.RateLimit.IsUsingOverage
+			if e.RateLimit.ResetsAt > 0 {
+				s.ResetsAt = time.Unix(e.RateLimit.ResetsAt, 0)
+			}
+		})}
 	}
 	return nil
+}
+
+// session reports what the agent said about its own run, carrying forward
+// anything it has already reported so a partial update does not erase it.
+func (t *streamTranslator) session(set func(*events.Session)) events.Event {
+	next := events.Session{}
+	if t.lastSession != nil {
+		next = *t.lastSession
+	}
+	set(&next)
+	t.lastSession = &next
+
+	return t.event(events.SessionInfo, func(ev *events.Event) { ev.Session = &next })
 }
 
 // assistant handles what the agent said and the tools it is about to run.
@@ -106,13 +152,24 @@ func (t *streamTranslator) assistant(e streamEvent) []events.Event {
 				}))
 			}
 
-			// Only commands are announced before they run: a command is slow
-			// enough that NOW should say it is running, while a file tool is
-			// reported once it has actually succeeded.
-			if shellTools[block.Name] {
+			switch {
+			case shellTools[block.Name]:
 				out = append(out, t.event(events.CommandStart, func(ev *events.Event) {
 					ev.Command = block.Input.Command
+					// The agent's own words for what the command is for.
+					ev.Message = block.Input.Description
 				}))
+
+			case writesFile(block.Name):
+				// Announced as claimed so the file shows up while it is being
+				// written. It is not reported as done: the tool can still be
+				// refused, and the claim is dropped if it is.
+				if rel := t.relative(block.Input.path()); rel != "" {
+					out = append(out, t.event(events.FilePending, func(ev *events.Event) {
+						ev.Path = rel
+						ev.Message = block.Input.Description
+					}))
+				}
 			}
 		}
 	}

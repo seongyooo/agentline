@@ -22,7 +22,9 @@ const (
 	// ActionWorking covers observable work with no more specific action yet:
 	// the agent reported that it is busy but has not touched a file or run a
 	// command. It is a summary of reported status, never inferred detail.
-	ActionWorking  ActionKind = "working"
+	ActionWorking ActionKind = "working"
+	// ActionWriting is a write the agent has announced but not yet completed.
+	ActionWriting  ActionKind = "writing"
 	ActionReading  ActionKind = "reading"
 	ActionEditing  ActionKind = "editing"
 	ActionCreating ActionKind = "creating"
@@ -59,6 +61,11 @@ type Action struct {
 	Kind   ActionKind
 	Target string
 	At     time.Time
+
+	// Summary is the agent's own description of what it is doing, when it
+	// gave one. It is shown in place of a raw command, which says what was
+	// typed but not what it is for. Never written by AgentView.
+	Summary string
 }
 
 // ActivityLevel expresses how recently a path was touched.
@@ -96,6 +103,11 @@ type AgentState struct {
 	// rather than estimating any.
 	Progress Progress
 
+	// Session is what the agent reported about its own run. Nil until it
+	// says something; AgentView reports nothing about usage it has not been
+	// told.
+	Session *events.Session
+
 	// missionPinned marks a mission the user set explicitly, which observed
 	// prompts must not overwrite.
 	missionPinned bool
@@ -106,6 +118,11 @@ type ProjectState struct {
 	Root           string
 	Tree           *project.Node
 	ActivityByPath map[string]time.Time
+
+	// PendingByPath holds files the agent has said it is about to write.
+	// They are shown as claimed, not done, and are cleared when the write
+	// lands or fails.
+	PendingByPath map[string]time.Time
 
 	// Git is the last repository snapshot. Its zero value means there is no
 	// repository, or none has been read yet.
@@ -130,8 +147,12 @@ func (s *State) Observed() bool { return s.observed }
 // New returns an empty state rooted at the given directory.
 func New(root string) *State {
 	return &State{
-		Agent:   AgentState{Agent: "—", Status: events.StatusWaiting, Now: Action{Kind: ActionIdle}},
-		Project: ProjectState{Root: root, ActivityByPath: map[string]time.Time{}},
+		Agent: AgentState{Agent: "—", Status: events.StatusWaiting, Now: Action{Kind: ActionIdle}},
+		Project: ProjectState{
+			Root:           root,
+			ActivityByPath: map[string]time.Time{},
+			PendingByPath:  map[string]time.Time{},
+		},
 	}
 }
 
@@ -155,7 +176,7 @@ func (s *State) Apply(e events.Event) {
 		s.recordFile(ActionDeleting, e)
 
 	case events.CommandStart:
-		s.setNow(Action{Kind: ActionRunning, Target: e.Command, At: e.Timestamp})
+		s.setNow(Action{Kind: ActionRunning, Target: e.Command, At: e.Timestamp, Summary: e.Message})
 		s.Agent.Status = events.StatusWorking
 
 	case events.CommandEnd:
@@ -171,6 +192,10 @@ func (s *State) Apply(e events.Event) {
 		s.Agent.Status = e.Status
 		switch e.Status {
 		case events.StatusWaiting, events.StatusNeedsInput:
+			// The turn is over, so nothing is still about to be written. A
+			// write that was refused never reports a failure of its own, so
+			// without this its claim would linger forever.
+			clear(s.Project.PendingByPath)
 			s.setNow(Action{Kind: ActionWaiting, At: e.Timestamp})
 		case events.StatusDone:
 			s.setNow(Action{Kind: ActionDone, At: e.Timestamp})
@@ -180,6 +205,9 @@ func (s *State) Apply(e events.Event) {
 
 	case events.AgentError:
 		s.Agent.Status = events.StatusError
+		// A refused or failed write never happened, so the claim is dropped
+		// rather than left showing as work in progress.
+		delete(s.Project.PendingByPath, e.Path)
 		s.setNow(Action{Kind: ActionFailed, Target: e.Message, At: e.Timestamp})
 
 	case events.UserPrompt:
@@ -188,10 +216,21 @@ func (s *State) Apply(e events.Event) {
 		s.markWorking(e.Timestamp)
 
 	case events.AgentReply:
-		s.Agent.Reply = headline(e.Message)
+		// Kept whole: the panel scrolls, so trimming here would throw away
+		// text the user can ask to see.
+		s.Agent.Reply = strings.TrimSpace(e.Message)
 
 	case events.TaskProgress:
 		s.Agent.Progress = Progress{Done: e.Done, Total: e.Total}
+
+	case events.FilePending:
+		// Claimed, not done: the write may still be refused.
+		s.Project.PendingByPath[e.Path] = e.Timestamp
+		s.setNow(Action{Kind: ActionWriting, Target: e.Path, At: e.Timestamp, Summary: e.Message})
+		s.Agent.Status = events.StatusWorking
+
+	case events.SessionInfo:
+		s.Agent.Session = e.Session
 	}
 }
 
@@ -241,9 +280,18 @@ func headline(prompt string) string {
 }
 
 func (s *State) recordFile(kind ActionKind, e events.Event) {
-	s.setNow(Action{Kind: kind, Target: e.Path, At: e.Timestamp})
+	s.setNow(Action{Kind: kind, Target: e.Path, At: e.Timestamp, Summary: e.Message})
 	s.Agent.Status = events.StatusWorking
 	s.Project.ActivityByPath[e.Path] = e.Timestamp
+
+	// The write landed, so the file is no longer merely claimed.
+	delete(s.Project.PendingByPath, e.Path)
+}
+
+// Pending reports whether a path is claimed but not yet written.
+func (s *State) Pending(path string) bool {
+	_, ok := s.Project.PendingByPath[path]
+	return ok
 }
 
 // setNow updates the current action and records it. Repeating the action

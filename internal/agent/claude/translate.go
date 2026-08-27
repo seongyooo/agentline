@@ -46,7 +46,19 @@ func (t *translator) translate(p payload) []events.Event {
 		if shellTools[p.ToolName] {
 			return []events.Event{t.event(events.CommandStart, func(e *events.Event) {
 				e.Command = p.ToolInput.Command
+				e.Message = p.ToolInput.Description
 			})}
+		}
+		// A write is announced as claimed, so the file shows up in the tree
+		// while it is being written. The claim is dropped if the write is
+		// refused or the turn ends without it landing.
+		if writesFile(p.ToolName) {
+			if rel := t.relative(p.ToolInput.path()); rel != "" {
+				return []events.Event{t.event(events.FilePending, func(e *events.Event) {
+					e.Path = rel
+					e.Message = p.ToolInput.Description
+				})}
+			}
 		}
 		return nil
 
@@ -93,6 +105,16 @@ func (t *translator) toolFinished(p payload, failed bool) []events.Event {
 		return nil // outside the project, or no path reported
 	}
 	return []events.Event{t.event(kind, func(e *events.Event) { e.Path = rel })}
+}
+
+// writesFile reports whether a tool changes a file, as opposed to only
+// reading one. Only writes are worth announcing before they happen.
+func writesFile(tool string) bool {
+	switch tool {
+	case toolEdit, toolWrite, toolNotebookEdit:
+		return true
+	}
+	return false
 }
 
 // fileEventType maps a tool name to the kind of file change it makes.
