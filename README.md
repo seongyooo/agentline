@@ -27,7 +27,7 @@ A real frame, rendered at 100×28 (colour stripped):
 ```text
 AGENTLINE   asks first                                                             ● CLAUDE  WORKING
                                                                                                     
-╭─ PROJECT ◂ ────────────────────────╮ ╭─ AGENT ───────────────────────────────────────────────────╮
+╭─ PROJECT ◂ ────────────────────────╮ ╭─ AGENT · Opus 5 ──────────────────────────────────────────╮
 │ ▾ Assets/                        ● │ │ MISSION                                                   │
 │ ├─ ▾ Scripts/                    ● │ │ Add Git awareness to the header                           │
 │ │  ├─ ▾ Core/                      │ │ ████████████░░░░░░░░░░░░ 2/4                              │
@@ -36,21 +36,21 @@ AGENTLINE   asks first                                                          
 │ │  │  ├─   Valve.cs              · │ │ Editing   3s                                              │
 │ │  │  └─   DrainSystem.cs        ● │ │ .../Puzzle/DrainSystem.cs                                 │
 │ │  └─ ▾ Rooms/                   ◐ │ │                                                           │
-│ │     └─   WaterRoom.cs          ◐ │ │                                                           │
-│ ├─ ▾ Prefabs/                      │ │ Opus 5 | Context: 31% used                                │
-│ ├─ ▾ Scenes/                       │ │ 5h: 62% (reset 8/27 19:40) | 7d: 28% (reset 8/31 13:00)   │
+│ │     └─   WaterRoom.cs          ◐ │ │ Context ███████░░░░░░░░░░░░░░░░░  31%                     │
+│ ├─ ▾ Prefabs/                      │ │ 5h      ██████████████░░░░░░░░░░  62%  resets 8/27 19:40  │
+│ ├─ ▾ Scenes/                       │ │ 7d      ██████░░░░░░░░░░░░░░░░░░  28%  resets 8/31 13:00  │
 ╰───────────────────────────── 1/12 ─╯ ╰───────────────────────────────────────────────────────────╯
 ╭─ ACTIVITY ───────────────────────────────────────────────────────────────────────────────────────╮
-│ 00:09  Reading   .../Puzzle/Valve.cs                                                             │
-│ 00:09  Editing   .../Rooms/WaterRoom.cs                                                          │
-│ 00:09  Running   git status --porcelain                                                          │
-│ 00:09  Reading   .../Player/Move.cs                                                              │
-│ 00:11  Reading   .../Rooms/WaterRoom.cs                                                          │
-│ 00:12  Running   Run the git package tests                                                       │
-│ 00:13  Done      Run the git package tests                                                       │
-│ 00:14  Editing   .../Puzzle/DrainSystem.cs                                                       │
+│ 00:26  Reading   .../Puzzle/Valve.cs                                                             │
+│ 00:26  Editing   .../Rooms/WaterRoom.cs                                                          │
+│ 00:26  Running   git status --porcelain                                                          │
+│ 00:26  Reading   .../Player/Move.cs                                                              │
+│ 00:28  Reading   .../Rooms/WaterRoom.cs                                                          │
+│ 00:29  Running   Run the git package tests                                                       │
+│ 00:30  Done      Run the git package tests                                                       │
+│ 00:31  Editing   .../Puzzle/DrainSystem.cs                                                       │
 ╰─────────────────────────────────────────────────────────────────────────────────────── 43-50/50 ─╯
-PULSE  █▆▆█▆▆█▆▆█▆▁     ▄▆█▆▆█▆▆█▆▆█▆▆█    ▄▆█▆▆█▆▆█▆▆█▆▆▆      ▁  ▁  ▁ ▁                23:52 → now
+PULSE  █▆▆█▆▆█▆▆█▆▁     ▄▆█▆▆█▆▆█▆▆█▆▆█    ▄▆█▆▆█▆▆█▆▆█▆▆▆      ▁  ▁  ▁ ▁                00:09 → now
                                                                                                     
 > Ask claude...                                                   enter inspect   tab focus   q quit
 ```
@@ -64,9 +64,11 @@ PULSE  █▆▆█▆▆█▆▆█▆▁     ▄▆█▆▆█▆▆█▆�
   flight with its elapsed time and the agent's own description of it, and a scrollable
   box holding its answer. The bar under `MISSION` counts the agent's own task list, and
   appears only when it keeps one: AgentLine never estimates completion.
-- **Session line** — the model, how full the context is, and the usage windows, written
-  the way Claude Code's own status line writes them. Everything on it was reported by
-  the agent; nothing is measured or estimated here.
+- **Session status** — how full the context is and how much of each usage window is
+  gone, as bars with the numbers beside them, pinned to the foot of the column. The
+  model names the panel itself. Everything here was reported by the agent; nothing is
+  measured or estimated. A window the agent never mentioned has no row. On a column
+  with no rows to spare the bars give way to the same figures in words.
 - **NEEDS YOU** — when the agent stops to ask permission for something, the question
   takes the top of the column and the terminal rings: a bell plus an OSC 9 desktop
   notification, which Windows Terminal and iTerm2 raise and everything else ignores.
