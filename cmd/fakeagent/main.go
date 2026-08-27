@@ -22,6 +22,7 @@ import (
 	"path/filepath"
 	"sort"
 	"strings"
+	"sync"
 	"time"
 )
 
@@ -38,6 +39,7 @@ func main() {
 		model:      "claude-opus-5-20260514",
 		permission: "default",
 		started:    time.Now(),
+		answers:    make(chan bool, 1),
 	}
 	agent.run()
 }
@@ -50,6 +52,12 @@ type agent struct {
 	turns  int
 	tokens int
 	edits  int
+
+	// answers carries permission decisions back from the reader to the turn
+	// that is waiting on one. The real agent asks and blocks, so the
+	// stand-in has to as well, or the state it is standing in for is one
+	// AgentLine can never be driven into without spending money.
+	answers chan bool
 }
 
 // run reads messages until the pipe closes, which is how AgentLine ends a
@@ -72,6 +80,11 @@ func (a *agent) run() {
 				Mode    string `json:"mode"`
 				Model   string `json:"model"`
 			} `json:"request"`
+			Response struct {
+				Response struct {
+					Behavior string `json:"behavior"`
+				} `json:"response"`
+			} `json:"response"`
 		}
 		if err := json.Unmarshal(scanner.Bytes(), &msg); err != nil {
 			continue
@@ -80,12 +93,25 @@ func (a *agent) run() {
 		switch msg.Type {
 		case "control_request":
 			a.control(msg.RequestID, msg.Request.Subtype, msg.Request.Mode, msg.Request.Model)
+
+		case "control_response":
+			// An answer to something this agent asked. Delivered without
+			// blocking: an answer nobody is waiting for is one that arrived
+			// after the asker gave up, and the reader must keep reading.
+			select {
+			case a.answers <- msg.Response.Response.Behavior == "allow":
+			default:
+			}
+
 		case "user":
 			var prompt string
 			if len(msg.Message.Content) > 0 {
 				prompt = msg.Message.Content[0].Text
 			}
-			a.turn(prompt)
+			// Off the reader, so a turn that stops to ask something can still
+			// hear the answer. AgentLine sends one prompt at a time, so there
+			// is no queue to keep.
+			go a.turn(prompt)
 		}
 	}
 }
@@ -182,8 +208,18 @@ func (a *agent) plan(prompt string) []func() {
 		steps = append(steps, func() { a.readFile(files[rand.Intn(len(files))]) })
 	}
 
+	// Most specific first. A prompt asking for a loop of tests contains both
+	// words, and whichever case is written first is the one that answers.
 	lower := strings.ToLower(prompt)
 	switch {
+	case strings.Contains(lower, "spin"), strings.Contains(lower, "loop"), strings.Contains(lower, "반복"), strings.Contains(lower, "뺑뺑이"):
+		// Enough rounds to pass every threshold AgentLine counts against,
+		// with room to spare so the panel is not a coin toss.
+		steps = append(steps, a.spin(6)...)
+
+	case strings.Contains(lower, "permission"), strings.Contains(lower, "ask"), strings.Contains(lower, "권한"):
+		steps = append(steps, func() { a.askThenWrite() })
+
 	case strings.Contains(lower, "fail"), strings.Contains(lower, "실패"):
 		steps = append(steps, func() { a.runCommand("go test ./...", "Run the test suite", true) })
 
@@ -447,10 +483,94 @@ func maxFloat(a, b float64) float64 {
 	return b
 }
 
+// emitMu serialises output. Turns run off the reader now, so two goroutines
+// can reach this, and a half-written line is a protocol error rather than a
+// glitch.
+var emitMu sync.Mutex
+
 func emit(v map[string]any) {
 	line, err := json.Marshal(v)
 	if err != nil {
 		return
 	}
+	emitMu.Lock()
+	defer emitMu.Unlock()
 	fmt.Println(string(line))
+}
+
+// askPermission asks AgentLine whether a tool call may go ahead, in the shape
+// the real agent asks it, and waits for the answer.
+//
+// The payload is the one a live session was observed sending, minus the fields
+// AgentLine does not read. Getting it wrong here would mean the stand-in
+// exercises a protocol nothing speaks.
+func (a *agent) askPermission(tool, description string, input map[string]any) bool {
+	drain(a.answers)
+
+	emit(map[string]any{
+		"type":       "control_request",
+		"request_id": toolID(),
+		"request": map[string]any{
+			"subtype":         "can_use_tool",
+			"tool_name":       tool,
+			"display_name":    tool,
+			"input":           input,
+			"description":     description,
+			"decision_reason": "fakeagent was told to ask before doing this.",
+			"permission_suggestions": []map[string]any{
+				{"type": "setMode", "mode": "acceptEdits", "destination": "session"},
+			},
+			"tool_use_id": toolID(),
+		},
+	})
+
+	// A stand-in must not hang forever waiting on a person who has walked
+	// away. The real agent gives up too, and how AgentLine behaves when an
+	// answer never comes is worth being able to try.
+	select {
+	case allowed := <-a.answers:
+		return allowed
+	case <-time.After(2 * time.Minute):
+		return false
+	}
+}
+
+// drain clears a stale answer, so one that arrived late for a previous ask
+// cannot be mistaken for the answer to this one.
+func drain(answers chan bool) {
+	select {
+	case <-answers:
+	default:
+	}
+}
+
+// askThenWrite is a write that stops to ask first, which is the only way to
+// see the NEEDS YOU state without a real session.
+func (a *agent) askThenWrite() {
+	input := map[string]any{
+		"file_path": abs(scratchFile),
+		"content":   "# Notes\n\nWritten by fakeagent, with permission.\n",
+	}
+	if !a.askPermission("Write", scratchFile, input) {
+		// Refused. The agent says so and carries on, which is what makes a
+		// refusal an answer rather than a failure.
+		a.runCommand("echo skipped", "Skip the write that was refused", false)
+		return
+	}
+	a.writeScratch()
+}
+
+// spin does the same work over and over without getting anywhere, which is the
+// thing SPINNING exists to notice. It is not a simulation of being stuck: it
+// really does rewrite one file and really does fail the same command, so what
+// AgentLine counts is what happened.
+func (a *agent) spin(rounds int) []func() {
+	steps := make([]func(), 0, rounds*2)
+	for i := 0; i < rounds; i++ {
+		steps = append(steps,
+			func() { a.editScratch() },
+			func() { a.runCommand("go test ./internal/valve", "Run the valve tests", true) },
+		)
+	}
+	return steps
 }

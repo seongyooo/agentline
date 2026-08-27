@@ -312,3 +312,101 @@ func startStandIn(t *testing.T, root string) (*claude.Stream, <-chan events.Even
 	})
 	return session, stream
 }
+
+// pump runs the message loop until stop says to stop, or time runs out.
+func pump(t *testing.T, m Model, stream <-chan events.Event, limit time.Duration, stop func(Model) bool) Model {
+	t.Helper()
+
+	deadline := time.After(limit)
+	for {
+		if stop(m) {
+			return m
+		}
+		select {
+		case e, ok := <-stream:
+			if !ok {
+				return m
+			}
+			next, _ := m.Update(eventMsg(e))
+			m = next.(Model)
+		case <-deadline:
+			t.Fatalf("timed out; state was %+v", m.st.Agent)
+		}
+	}
+}
+
+// standIn wires the stand-in to a model the way the program does.
+func standIn(t *testing.T) (Model, *claude.Stream, <-chan events.Event) {
+	t.Helper()
+	if testing.Short() {
+		t.Skip("builds a helper binary")
+	}
+
+	root := t.TempDir()
+	writeTree(t, root, "src/main.go", "README.md")
+	session, stream := startStandIn(t, root)
+
+	scanner := project.NewScanner(root)
+	st := state.New(root)
+	st.Project.Tree = scanner.NewTree()
+
+	model, _ := New(st, scanner, stream).WithSender(session).Update(tea.WindowSizeMsg{Width: 100, Height: 32})
+	return model.(Model), session, stream
+}
+
+// The whole point of the stand-in is that every state AgentLine can be in is
+// reachable without paying for it. A permission prompt is one of those states,
+// and it is the one that took a spike and three live sessions to get right —
+// so it is the one most worth being able to reach for free.
+func TestStandInCanBeMadeToAskPermission(t *testing.T) {
+	m, session, stream := standIn(t)
+
+	if err := session.Send("ask permission before writing"); err != nil {
+		t.Fatal(err)
+	}
+	m = pump(t, m, stream, 60*time.Second, func(m Model) bool { return m.st.Agent.Ask != nil })
+
+	ask := m.st.Agent.Ask
+	if ask.Tool != "Write" || ask.Mode != "acceptEdits" {
+		t.Errorf("ask = %+v, want a Write with a suggested mode", ask)
+	}
+	if out := ansi.Strip(m.View()); !strings.Contains(out, "NEEDS YOU") {
+		t.Errorf("the frame does not show the question:\n%s", out)
+	}
+
+	// Answering has to actually release it, or the stand-in is standing in
+	// for half the exchange.
+	if cmd := m.answer(ask, true, ""); cmd != nil {
+		cmd()
+	}
+	m = pump(t, m, stream, 30*time.Second, func(m Model) bool { return m.st.Agent.Ask == nil })
+
+	if m.st.Agent.Ask != nil {
+		t.Error("the agent stayed blocked after it was answered")
+	}
+}
+
+// Spinning is counted from real repetition, so the stand-in really repeats
+// itself rather than announcing that it is stuck.
+func TestStandInCanBeMadeToSpin(t *testing.T) {
+	m, session, stream := standIn(t)
+
+	if err := session.Send("spin on the valve tests"); err != nil {
+		t.Fatal(err)
+	}
+	m = pump(t, m, stream, 90*time.Second, func(m Model) bool { return m.st.Agent.Spin != nil })
+
+	spin := m.st.Agent.Spin
+	if spin == nil {
+		t.Fatal("repeating the same work went unnoticed")
+	}
+
+	out := ansi.Strip(m.View())
+	if !strings.Contains(out, "SPINNING") {
+		t.Errorf("the frame does not report it:\n%s", out)
+	}
+	// The counts are the whole claim, so at least one has to be on screen.
+	if !strings.Contains(out, "times") {
+		t.Errorf("the frame reports spinning without saying what was counted:\n%s", out)
+	}
+}
