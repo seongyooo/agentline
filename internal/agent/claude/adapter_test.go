@@ -61,7 +61,7 @@ func receive(t *testing.T, stream <-chan events.Event) events.Event {
 func TestAdapterDeliversTranslatedEvents(t *testing.T) {
 	_, stream, url := start(t)
 
-	if resp := post(t, url, readPayload); resp.StatusCode != http.StatusOK {
+	if resp := post(t, url, readPayload()); resp.StatusCode != http.StatusOK {
 		t.Errorf("status = %d, want 200", resp.StatusCode)
 	}
 
@@ -87,7 +87,7 @@ func TestMalformedPayloadStillAnswersOK(t *testing.T) {
 	}
 
 	// The adapter must still be usable afterwards.
-	post(t, url, readPayload)
+	post(t, url, readPayload())
 	if got := receive(t, stream); got.Type != events.FileRead {
 		t.Errorf("adapter stopped working after a bad payload: %+v", got)
 	}
@@ -102,7 +102,7 @@ func TestFullBufferDropsInsteadOfBlockingTheAgent(t *testing.T) {
 	go func() {
 		defer close(done)
 		for i := 0; i < buffer+50; i++ {
-			post(t, url, readPayload)
+			post(t, url, readPayload())
 		}
 	}()
 

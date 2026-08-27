@@ -1,0 +1,13 @@
+# Git converts line endings on checkout when core.autocrlf is on, which it is
+# by default on Windows and on GitHub's Windows runners. gofmt treats a file
+# with CRLF as unformatted, so without this the formatting check fails on
+# Windows and passes everywhere else — for reasons that have nothing to do
+# with the code.
+#
+# Keeping LF in the working tree on every platform makes the check mean the
+# same thing wherever it runs.
+* text=auto eol=lf
+
+*.png binary
+*.gif binary
+*.jpg binary

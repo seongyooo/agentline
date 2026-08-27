@@ -3,12 +3,34 @@ package claude
 import (
 	"encoding/json"
 	"path/filepath"
+	"runtime"
 	"testing"
 
 	"github.com/seongyooo/agentline/internal/events"
 )
 
-const root = `C:\proj`
+// The adapter works in native paths, because that is what the agent reports:
+// a Windows session says C:\proj\notes.md and a Unix one says /proj/notes.md.
+// Hard-coding either shape makes the tests pass on one platform and fail on
+// the rest, so they are built for whichever is running them.
+var (
+	root    = nativePath("proj")
+	outside = nativePath("elsewhere")
+)
+
+// nativePath builds an absolute path the host's filepath will parse.
+func nativePath(segments ...string) string {
+	if runtime.GOOS == "windows" {
+		return filepath.Join(append([]string{`C:\`}, segments...)...)
+	}
+	return filepath.Join(append([]string{"/"}, segments...)...)
+}
+
+// jsonPath renders a native path as it would appear inside a JSON payload.
+func jsonPath(segments ...string) string {
+	quoted, _ := json.Marshal(nativePath(segments...))
+	return string(quoted)
+}
 
 func tr() *translator { return newTranslator(root) }
 
@@ -34,18 +56,21 @@ func only(t *testing.T, got []events.Event) events.Event {
 	return got[0]
 }
 
-// This payload is a real PostToolUse capture, trimmed to the fields the
-// adapter reads. See docs/hook-spike.md.
-const readPayload = `{
+// readPayload is a real PostToolUse capture, trimmed to the fields the adapter
+// reads and with its paths written the way the host would. See
+// docs/hook-spike.md for the original.
+func readPayload() string {
+	return `{
   "hook_event_name": "PostToolUse",
   "tool_name": "Read",
   "tool_use_id": "toolu_01NNFgav41Kn3PztJDhS5rmK",
-  "cwd": "C:\\proj",
-  "tool_input": { "file_path": "C:\\proj\\notes.md" }
+  "cwd": ` + jsonPath("proj") + `,
+  "tool_input": { "file_path": ` + jsonPath("proj", "notes.md") + ` }
 }`
+}
 
 func TestReadBecomesFileRead(t *testing.T) {
-	got := only(t, tr().translate(decode(t, readPayload)))
+	got := only(t, tr().translate(decode(t, readPayload())))
 
 	if got.Type != events.FileRead {
 		t.Errorf("Type = %q, want %q", got.Type, events.FileRead)
@@ -244,7 +269,7 @@ func TestPendingWriteOutsideProjectIsDropped(t *testing.T) {
 	got := tr().translate(payload{
 		HookEventName: hookPreToolUse,
 		ToolName:      "Write",
-		ToolInput:     toolInput{FilePath: `C:\elsewhere\secret.txt`},
+		ToolInput:     toolInput{FilePath: nativePath("elsewhere", "secret.txt")},
 	})
 	if got != nil {
 		t.Errorf("got %+v, want nothing for a write outside the project", got)
@@ -279,8 +304,8 @@ func TestPathRelativization(t *testing.T) {
 	}{
 		{"nested file", filepath.Join(root, "internal", "tui", "view.go"), "internal/tui/view.go"},
 		{"root file", filepath.Join(root, "go.mod"), "go.mod"},
-		{"outside the project", `C:\elsewhere\secret.txt`, ""},
-		{"parent of the project", `C:\`, ""},
+		{"outside the project", nativePath("elsewhere", "secret.txt"), ""},
+		{"parent of the project", nativePath(), ""},
 		{"empty", "", ""},
 	}
 
@@ -299,7 +324,7 @@ func TestFileOutsideProjectIsDropped(t *testing.T) {
 	got := tr().translate(payload{
 		HookEventName: hookPostToolUse,
 		ToolName:      "Read",
-		ToolInput:     toolInput{FilePath: `C:\elsewhere\secret.txt`},
+		ToolInput:     toolInput{FilePath: nativePath("elsewhere", "secret.txt")},
 	})
 	if got != nil {
 		t.Errorf("got %+v, want nothing for a file outside the project", got)
