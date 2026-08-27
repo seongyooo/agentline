@@ -39,6 +39,9 @@ const (
 // rule above the input, and the input line itself.
 const chromeRows = 4
 
+// headerRows is the header plus its rule, which the body starts after.
+const headerRows = 2
+
 // activityChrome counts the activity panel's own rule and label rows.
 const activityChrome = 2
 

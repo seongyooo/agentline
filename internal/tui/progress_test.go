@@ -23,19 +23,35 @@ func progress(done, total int) events.Event {
 	}
 }
 
+// Progress belongs to the mission: it counts steps towards that goal, so the
+// bar sits under it rather than in a panel of its own.
 func TestProgressShowsTheAgentsTaskCount(t *testing.T) {
 	m := sized(t, 100, 40)
 	m, _ = send(m, progress(3, 7))
 
 	out := ansi.Strip(m.View())
-	if !strings.Contains(out, "PROGRESS") {
-		t.Errorf("no progress panel:\n%s", out)
-	}
 	if !strings.Contains(out, "3/7") {
 		t.Errorf("count not spelled out:\n%s", out)
 	}
 	if !strings.Contains(out, "█") {
 		t.Errorf("no bar drawn:\n%s", out)
+	}
+
+	lines := strings.Split(out, "\n")
+	mission, bar := -1, -1
+	for i, line := range lines {
+		if strings.Contains(line, "MISSION") {
+			mission = i
+		}
+		if strings.Contains(line, "3/7") {
+			bar = i
+		}
+	}
+	if mission < 0 || bar < 0 {
+		t.Fatalf("mission at %d, bar at %d:\n%s", mission, bar, out)
+	}
+	if bar-mission > 2 {
+		t.Errorf("bar is %d rows below MISSION; it should sit with the goal", bar-mission)
 	}
 }
 
@@ -44,7 +60,7 @@ func TestProgressShowsTheAgentsTaskCount(t *testing.T) {
 func TestNoProgressShownWithoutATaskList(t *testing.T) {
 	m := sized(t, 100, 40)
 
-	if out := ansi.Strip(m.View()); strings.Contains(out, "PROGRESS") {
+	if out := ansi.Strip(m.View()); strings.Contains(out, "█") || strings.Contains(out, "░") {
 		t.Errorf("progress shown with no task list:\n%s", out)
 	}
 }
@@ -66,7 +82,7 @@ func TestImpossibleCountsAreRejected(t *testing.T) {
 			m := sized(t, 100, 40)
 			m, _ = send(m, progress(tc.done, tc.total))
 
-			if out := ansi.Strip(m.View()); strings.Contains(out, "PROGRESS") {
+			if out := ansi.Strip(m.View()); strings.Contains(out, "█") || strings.Contains(out, "░") {
 				t.Errorf("rendered an impossible count:\n%s", out)
 			}
 		})

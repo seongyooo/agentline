@@ -49,10 +49,17 @@ func key(m Model, k tea.KeyType) (Model, tea.Cmd) {
 	return next.(Model), cmd
 }
 
+// focusPromptKey jumps straight to the prompt. Tab cycles through every
+// scrollable panel, so it is not a direct route to the prompt any more.
+func focusPromptKey(m Model) Model {
+	next, _ := m.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune("i")})
+	return next.(Model)
+}
+
 func TestPromptIsSubmittedOnEnter(t *testing.T) {
 	m, sender := sendable(t)
 
-	m, _ = key(m, tea.KeyTab)
+	m = focusPromptKey(m)
 	m = typeText(m, "fix the valve")
 	m, cmd := key(m, tea.KeyEnter)
 	if cmd == nil {
@@ -74,7 +81,7 @@ func TestTypingDoesNotTriggerNavigation(t *testing.T) {
 	m, _ := sendable(t)
 	before := m.tree.cursor
 
-	m, _ = key(m, tea.KeyTab)
+	m = focusPromptKey(m)
 	m = typeText(m, "quit down")
 	m, cmd := key(m, tea.KeyDown)
 
@@ -100,7 +107,7 @@ func TestQuitStillWorksWhileNavigating(t *testing.T) {
 // Ctrl+C must always work, even mid-sentence.
 func TestCtrlCQuitsWhileTyping(t *testing.T) {
 	m, _ := sendable(t)
-	m, _ = key(m, tea.KeyTab)
+	m = focusPromptKey(m)
 	m = typeText(m, "half a thought")
 
 	if _, cmd := key(m, tea.KeyCtrlC); cmd == nil {
@@ -111,13 +118,13 @@ func TestCtrlCQuitsWhileTyping(t *testing.T) {
 func TestEscReturnsFocusToTheTree(t *testing.T) {
 	m, _ := sendable(t)
 
-	m, _ = key(m, tea.KeyTab)
-	if !m.inputFocused {
-		t.Fatal("tab did not focus the prompt")
+	m = focusPromptKey(m)
+	if !m.inputFocused() {
+		t.Fatal("i did not focus the prompt")
 	}
 
 	m, _ = key(m, tea.KeyEsc)
-	if m.inputFocused {
+	if m.inputFocused() {
 		t.Error("esc did not return focus to the tree")
 	}
 
@@ -130,7 +137,7 @@ func TestEscReturnsFocusToTheTree(t *testing.T) {
 func TestEmptyPromptIsNotSent(t *testing.T) {
 	m, sender := sendable(t)
 
-	m, _ = key(m, tea.KeyTab)
+	m = focusPromptKey(m)
 	m = typeText(m, "   ")
 	if _, cmd := key(m, tea.KeyEnter); cmd != nil {
 		cmd()
@@ -146,7 +153,7 @@ func TestFailedSendIsShown(t *testing.T) {
 	m, sender := sendable(t)
 	sender.err = errors.New("session is not running")
 
-	m, _ = key(m, tea.KeyTab)
+	m = focusPromptKey(m)
 	m = typeText(m, "hello")
 	_, cmd := key(m, tea.KeyEnter)
 
@@ -163,9 +170,15 @@ func TestFailedSendIsShown(t *testing.T) {
 func TestObserverModeHasNoLivePrompt(t *testing.T) {
 	m := sized(t, 100, 30)
 
-	m, cmd := key(m, tea.KeyTab)
-	if cmd != nil || m.inputFocused {
+	if m = focusPromptKey(m); m.inputFocused() {
 		t.Error("prompt took focus with no session to send to")
+	}
+	// Cycling must skip it too, rather than parking focus somewhere inert.
+	for i := 0; i < 4; i++ {
+		m, _ = key(m, tea.KeyTab)
+		if m.inputFocused() {
+			t.Fatal("tab cycled onto a prompt that cannot send")
+		}
 	}
 	if out := ansi.Strip(m.View()); !strings.Contains(out, "Ask Claude Code") {
 		t.Errorf("placeholder missing:\n%s", out)
@@ -176,11 +189,11 @@ func TestObserverModeHasNoLivePrompt(t *testing.T) {
 func TestHintFollowsFocus(t *testing.T) {
 	m, _ := sendable(t)
 
-	if got := m.inputHint(); !strings.Contains(got, "tab") {
+	if got := m.inputHint(); !strings.Contains(got, "prompt") {
 		t.Errorf("hint = %q, want it to offer the prompt", got)
 	}
 
-	m, _ = key(m, tea.KeyTab)
+	m = focusPromptKey(m)
 	if got := m.inputHint(); !strings.Contains(got, "enter") {
 		t.Errorf("hint = %q, want it to explain sending", got)
 	}
@@ -195,7 +208,7 @@ func TestPromptKeepsTheLayoutIntact(t *testing.T) {
 		model, _ := New(st, nil, nil).WithSender(&fakeSender{}).Update(tea.WindowSizeMsg{Width: w, Height: 30})
 		m := model.(Model)
 
-		m, _ = key(m, tea.KeyTab)
+		m = focusPromptKey(m)
 		m = typeText(m, strings.Repeat("a very long instruction ", 10))
 
 		for i, line := range strings.Split(m.View(), "\n") {

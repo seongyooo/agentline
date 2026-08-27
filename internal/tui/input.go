@@ -29,21 +29,6 @@ func newInput() textinput.Model {
 // canSend reports whether there is a session to submit prompts to.
 func (m Model) canSend() bool { return m.sender != nil }
 
-// focusInput moves editing focus to the prompt field.
-func (m *Model) focusInput() tea.Cmd {
-	if !m.canSend() {
-		return nil
-	}
-	m.inputFocused = true
-	return m.input.Focus()
-}
-
-// blurInput returns focus to the project tree.
-func (m *Model) blurInput() {
-	m.inputFocused = false
-	m.input.Blur()
-}
-
 // submitPrompt sends what has been typed and clears the field.
 //
 // The send runs off the UI goroutine: writing to the agent's stdin can block

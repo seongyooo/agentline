@@ -98,7 +98,14 @@ func run() error {
 	}
 
 	log.Printf("starting agentview in %s", root)
-	_, err = tea.NewProgram(model.WithStream(stream).WithHint(hint), tea.WithAltScreen()).Run()
+	program := tea.NewProgram(
+		model.WithStream(stream).WithHint(hint),
+		tea.WithAltScreen(),
+		// Cells only, so the terminal's own text selection still works: a
+		// full motion grab would take copy-paste away from the user.
+		tea.WithMouseCellMotion(),
+	)
+	_, err = program.Run()
 	return err
 }
 

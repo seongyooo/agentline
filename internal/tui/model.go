@@ -65,14 +65,20 @@ type Model struct {
 	// leaves the prompt field inert.
 	sender Sender
 
-	input        textinput.Model
-	inputFocused bool
-	sendErr      error
+	input   textinput.Model
+	sendErr error
+
+	focus          focusArea
+	replyScroll    int
+	activityScroll int
 
 	tree   treeView
 	width  int
 	height int
 }
+
+// inputFocused reports whether typing goes to the prompt.
+func (m Model) inputFocused() bool { return m.focus == focusPrompt }
 
 // observedActivity reports whether anything has been heard from an agent.
 //
@@ -142,8 +148,11 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.sendErr = msg.err
 		return m, nil
 
+	case tea.MouseMsg:
+		return m.mouse(msg)
+
 	case tea.KeyMsg:
-		if m.inputFocused {
+		if m.inputFocused() {
 			return m.typing(msg)
 		}
 		return m.navigating(msg)
@@ -165,7 +174,7 @@ func (m Model) typing(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	case "enter":
 		return m, m.submitPrompt()
 	case "esc", "tab":
-		m.blurInput()
+		m.setFocus(focusTree)
 		return m, nil
 	}
 
@@ -173,30 +182,85 @@ func (m Model) typing(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	return m, m.updateInput(msg)
 }
 
-// navigating routes a key to the project tree.
+// navigating routes a key to the focused panel.
 func (m Model) navigating(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
+	l := computeLayout(m.width, m.height)
+
 	switch msg.String() {
 	// Esc is reserved for cancelling and closing popups (§22), so it is
 	// deliberately not a quit key.
 	case "q", "ctrl+c":
 		return m, tea.Quit
-	case "tab", "i":
-		return m, m.focusInput()
+
+	case "tab":
+		return m, m.setFocus(m.cycle(m.focus, l))
+	case "i":
+		if m.canSend() {
+			return m, m.setFocus(focusPrompt)
+		}
+
 	case "up":
-		m.moveCursor(-1)
+		m.scrollFocused(-1, l)
 	case "down":
-		m.moveCursor(1)
+		m.scrollFocused(1, l)
+	case "pgup":
+		m.scrollFocused(-l.ActivityRows-1, l)
+	case "pgdown":
+		m.scrollFocused(l.ActivityRows+1, l)
+
+	// Expanding and collapsing only mean something in the tree.
 	case "right":
-		m.expand()
+		if m.focus == focusTree {
+			m.expand()
+			m.syncScroll()
+		}
 	case "left":
-		m.collapse()
+		if m.focus == focusTree {
+			m.collapse()
+			m.syncScroll()
+		}
 	case "enter":
-		m.toggle()
-	default:
+		if m.focus == focusTree {
+			m.toggle()
+			m.syncScroll()
+		}
+	}
+	return m, nil
+}
+
+// mouse routes a click or wheel movement to the panel under the pointer.
+func (m Model) mouse(msg tea.MouseMsg) (tea.Model, tea.Cmd) {
+	if m.width < minWidth || m.height < minHeight {
+		return m, nil
+	}
+	l := computeLayout(m.width, m.height)
+
+	area, ok := m.focusAt(msg.X, msg.Y, l)
+	if !ok {
 		return m, nil
 	}
 
-	m.syncScroll()
+	switch msg.Button {
+	case tea.MouseButtonWheelUp, tea.MouseButtonWheelDown:
+		// The wheel acts on whatever is under the pointer, which is what a
+		// mouse user expects, and without stealing focus from elsewhere.
+		if area == focusPrompt {
+			return m, nil
+		}
+		focus := m.focus
+		m.focus = area
+		if msg.Button == tea.MouseButtonWheelUp {
+			m.scrollFocused(-1, l)
+		} else {
+			m.scrollFocused(1, l)
+		}
+		m.focus = focus
+
+	case tea.MouseButtonLeft:
+		if msg.Action == tea.MouseActionPress {
+			return m, m.setFocus(area)
+		}
+	}
 	return m, nil
 }
 
@@ -213,10 +277,29 @@ func (m *Model) applyEvent(e events.Event) {
 		// Revealing inserts rows above the selection, so the cursor has to
 		// follow the node the user chose rather than the index it sat at.
 		m.keepingSelection(func() {
-			m.scanner.Reveal(m.st.Project.Tree, e.Path)
+			m.showPath(e)
 		})
 	}
 	m.syncScroll()
+}
+
+// showPath makes the file an event touched visible in the tree.
+//
+// The tree is a snapshot of one scan, so a file the agent just created is not
+// in it. A completed write can be found by re-reading the directory; an
+// announced one has nothing on disk yet, so its node is inserted directly and
+// replaced by the real entry at the next refresh.
+func (m *Model) showPath(e events.Event) {
+	tree := m.st.Project.Tree
+
+	if project.Find(tree, e.Path) == nil {
+		if e.Type == events.FilePending {
+			project.Insert(tree, e.Path)
+		} else {
+			m.scanner.RefreshParent(tree, e.Path)
+		}
+	}
+	m.scanner.Reveal(tree, e.Path)
 }
 
 // keepingSelection runs a change that may insert or remove tree rows, then

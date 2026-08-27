@@ -17,10 +17,14 @@ var (
 	styleDim      = lipgloss.NewStyle().Faint(true)
 	styleRule     = lipgloss.NewStyle().Faint(true)
 	styleSelected = lipgloss.NewStyle().Reverse(true)
-	styleWorking  = lipgloss.NewStyle().Foreground(lipgloss.Color("4"))
-	styleOK       = lipgloss.NewStyle().Foreground(lipgloss.Color("2"))
-	styleWarn     = lipgloss.NewStyle().Foreground(lipgloss.Color("3"))
-	styleError    = lipgloss.NewStyle().Foreground(lipgloss.Color("1"))
+	// Files claimed but not yet written are dimmed, so they can be seen
+	// arriving without reading as files that already exist.
+	stylePending = lipgloss.NewStyle().Faint(true)
+	styleFocus   = lipgloss.NewStyle().Bold(true)
+	styleWorking = lipgloss.NewStyle().Foreground(lipgloss.Color("4"))
+	styleOK      = lipgloss.NewStyle().Foreground(lipgloss.Color("2"))
+	styleWarn    = lipgloss.NewStyle().Foreground(lipgloss.Color("3"))
+	styleError   = lipgloss.NewStyle().Foreground(lipgloss.Color("1"))
 )
 
 // statusLabel maps a status to a symbol, text, and style. The symbol carries
@@ -82,6 +86,8 @@ func actionVerb(k state.ActionKind) string {
 	switch k {
 	case state.ActionWorking:
 		return "Working"
+	case state.ActionWriting:
+		return "Writing"
 	case state.ActionReading:
 		return "Reading"
 	case state.ActionEditing:
