@@ -14,6 +14,11 @@ import (
 // maxActivity bounds in-memory history; the UI shows far fewer.
 const maxActivity = 50
 
+// maxTrace bounds the counted history. It is longer than the log because
+// nothing is dropped from it, and shorter than a session because only the last
+// few minutes are ever looked at.
+const maxTrace = 300
+
 // ActionKind is the observable category of what the agent is doing.
 type ActionKind string
 
@@ -114,6 +119,11 @@ type AgentState struct {
 	// told.
 	Session *events.Session
 
+	// Spin is what the session has been repeating, when it is repeating
+	// anything. Derived here rather than reported: no adapter can see it,
+	// because seeing it means remembering what already happened.
+	Spin *Spin
+
 	// Pulse is the session's shape over time, counted from the same actions
 	// the log shows and kept for far longer than the log keeps them.
 	Pulse Pulse
@@ -153,6 +163,16 @@ type State struct {
 	// It is not the same as having activity to show: a prompt sets the
 	// mission and the status without logging an action.
 	observed bool
+
+	// trace is every observed action, repeats included, for the things that
+	// are counted rather than displayed. The activity log is not usable for
+	// that: it deliberately drops a repeat, which is the signal.
+	trace []Action
+
+	// dismissed remembers the counts a finding had when the user waved it
+	// away, so the same evidence is not put back on the screen a second
+	// later. It re-arms only once the repetition gets meaningfully worse.
+	dismissed map[string]int
 }
 
 // ResetSession forgets what was reported about the previous session.
@@ -207,7 +227,8 @@ func (s *State) Observed() bool { return s.observed }
 // New returns an empty state rooted at the given directory.
 func New(root string) *State {
 	return &State{
-		Agent: AgentState{Agent: "—", Status: events.StatusWaiting, Now: Action{Kind: ActionIdle}},
+		dismissed: map[string]int{},
+		Agent:     AgentState{Agent: "—", Status: events.StatusWaiting, Now: Action{Kind: ActionIdle}},
 		Project: ProjectState{
 			Root:           root,
 			ActivityByPath: map[string]time.Time{},
@@ -222,6 +243,7 @@ func (s *State) Apply(e events.Event) {
 	if !e.Valid() {
 		return
 	}
+	defer s.Refresh(e.Timestamp)
 	s.observed = true
 	s.Agent.Agent = e.Source
 
@@ -386,13 +408,29 @@ func (s *State) Pending(path string) bool {
 func (s *State) setNow(a Action) {
 	repeat := s.Agent.Now.Kind == a.Kind && s.Agent.Now.Target == a.Target
 	s.Agent.Now = a
+
+	// Counted whether or not it is shown. The log collapses a repeat because
+	// a log should say what changed; counting is the opposite job, and an
+	// agent writing one file six times in a row is precisely the thing the
+	// counts exist to catch.
+	s.observe(a)
 	if !repeat {
 		s.push(a)
 	}
 }
 
-func (s *State) push(a Action) {
+// observe records an action for everything derived from counts rather than
+// read off the screen: the session's shape, and whether it is repeating.
+func (s *State) observe(a Action) {
 	s.Agent.Pulse.Add(a.Kind, a.At)
+
+	s.trace = append(s.trace, a)
+	if n := len(s.trace); n > maxTrace {
+		s.trace = s.trace[n-maxTrace:]
+	}
+}
+
+func (s *State) push(a Action) {
 	s.Agent.Activity = append(s.Agent.Activity, a)
 	if n := len(s.Agent.Activity); n > maxActivity {
 		s.Agent.Activity = s.Agent.Activity[n-maxActivity:]
