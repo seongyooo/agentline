@@ -621,7 +621,27 @@ func (m Model) promptField(width int) string {
 	// character count. Korean and other CJK text takes two cells per
 	// character, so a widget-padded field runs two cells past its box for
 	// every Hangul syllable and the line wraps around the screen.
-	return fitLine(m.input.Prompt+m.promptText(width), width)
+	field := m.input.Prompt + m.promptText(width)
+	m.placeCaret(field)
+
+	return fitLine(field, width)
+}
+
+// placeCaret puts the terminal cursor after the text being typed.
+//
+// An input method draws the syllable it is composing at the terminal's cursor,
+// so this is what keeps Korean appearing where the user is typing instead of
+// at the corner of the screen.
+func (m Model) placeCaret(field string) {
+	if m.caret == nil {
+		return
+	}
+	if !m.inputFocused() {
+		m.caret.Hide()
+		return
+	}
+	// The bar is the last row, and columns are one-based.
+	m.caret.Set(ansi.StringWidth(field)+1, m.height)
 }
 
 // promptText is the value with the caret end kept in view.

@@ -98,12 +98,18 @@ func run() error {
 	}
 
 	log.Printf("starting agentview in %s", root)
+	// The cursor is placed after each frame so an input method composes where
+	// the text is. Without it Korean appears in the corner of the screen
+	// until the syllable is finished.
+	caret := &tui.Caret{}
+
 	program := tea.NewProgram(
-		model.WithStream(stream).WithHint(hint),
+		model.WithStream(stream).WithHint(hint).WithCaret(caret),
 		tea.WithAltScreen(),
 		// Cells only, so the terminal's own text selection still works: a
 		// full motion grab would take copy-paste away from the user.
 		tea.WithMouseCellMotion(),
+		tea.WithOutput(caret.Writer(os.Stdout)),
 	)
 	_, err = program.Run()
 	return err

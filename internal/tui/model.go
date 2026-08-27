@@ -76,6 +76,10 @@ type Model struct {
 	// mission column while it is set.
 	inspecting *project.Node
 
+	// caret places the terminal cursor, which is where an input method draws
+	// the character it is composing. Nil leaves the cursor alone.
+	caret *Caret
+
 	tree   treeView
 	width  int
 	height int
@@ -111,6 +115,13 @@ func (m Model) WithHint(hint string) Model {
 // WithStream attaches the event source the UI listens to.
 func (m Model) WithStream(stream <-chan events.Event) Model {
 	m.stream = stream
+	return m
+}
+
+// WithCaret lets the model place the terminal cursor, so an input method
+// composes where the text is rather than at the corner of the screen.
+func (m Model) WithCaret(caret *Caret) Model {
+	m.caret = caret
 	return m
 }
 

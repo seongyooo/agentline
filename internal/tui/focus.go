@@ -51,14 +51,23 @@ func (m Model) focusable(area focusArea, l Layout) bool {
 }
 
 // setFocus moves focus, taking the prompt's editing state with it.
+//
+// The terminal cursor is shown only while typing. It is what an input method
+// composes against, and it doubles as the caret the user needs to see now that
+// the field is drawn here rather than by the widget.
 func (m *Model) setFocus(area focusArea) tea.Cmd {
 	if m.focus == focusPrompt && area != focusPrompt {
 		m.input.Blur()
+		if m.caret != nil {
+			m.caret.Hide()
+		}
+		m.focus = area
+		return tea.HideCursor
 	}
 	m.focus = area
 
 	if area == focusPrompt {
-		return m.input.Focus()
+		return tea.Batch(m.input.Focus(), tea.ShowCursor)
 	}
 	return nil
 }
