@@ -217,6 +217,12 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return m.mouse(msg)
 
 	case tea.KeyMsg:
+		// A blocked agent takes the keys first, regardless of where focus
+		// happens to be: typing a reply must not swallow the y/n/a that
+		// answers what it is stuck on.
+		if cmd, handled := m.answering(msg); handled {
+			return m, cmd
+		}
 		if m.inputFocused() {
 			return m.typing(msg)
 		}
@@ -301,12 +307,8 @@ func (m Model) typing(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 func (m Model) navigating(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	l := computeLayout(m.width, m.height)
 
-	// A blocked agent takes the keys first. Nothing else on screen is waiting
-	// on an answer, and every key spent navigating while it waits is the agent
-	// sitting idle.
-	if cmd, handled := m.answering(msg); handled {
-		return m, cmd
-	}
+	// The ask is already claimed by Update before routing gets here (it must
+	// win over typing too), so only the spin question is left to check.
 	if cmd, handled := m.spinning(msg); handled {
 		return m, cmd
 	}

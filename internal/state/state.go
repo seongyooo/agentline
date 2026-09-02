@@ -355,7 +355,15 @@ func (s *State) Apply(e events.Event) {
 // never contradict the header: reporting WORKING above an Idle NOW is exactly
 // the inconsistency this prevents. A specific action already on screen is more
 // informative than the summary and is left alone.
+//
+// A question still outstanding outranks this: the agent cannot be busy on
+// something new while it is stopped waiting for an answer, so a prompt or
+// stray status report arriving in the meantime must not flip the header to
+// WORKING out from under a NEEDS YOU that is still on screen.
 func (s *State) markWorking(at time.Time) {
+	if s.Agent.Ask != nil {
+		return
+	}
 	s.Agent.Status = events.StatusWorking
 	if s.Agent.Now.Kind == ActionIdle {
 		s.setNow(Action{Kind: ActionWorking, At: at})
@@ -375,8 +383,13 @@ func (s *State) PinMission(mission string) {
 // something observed, not an inference about it — no model is consulted. The
 // most recent prompt wins, because an older instruction the user has since
 // moved on from would describe work that is no longer happening.
+//
+// The exception is a prompt typed while the agent is blocked on a question:
+// the CLI cannot act on it until that question is answered, so it has not
+// been moved on to yet. Overwriting MISSION at that moment would make NEEDS
+// YOU look like it belongs to a task nobody can see on screen anymore.
 func (s *State) setMission(prompt string) {
-	if s.Agent.missionPinned {
+	if s.Agent.missionPinned || s.Agent.Ask != nil {
 		return
 	}
 	if mission := headline(prompt); mission != "" {

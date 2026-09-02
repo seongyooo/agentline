@@ -108,6 +108,25 @@ func TestPinnedMissionSurvivesPrompts(t *testing.T) {
 	}
 }
 
+// A prompt typed while the agent is blocked on a question cannot be acted on
+// yet, so it must not make MISSION describe work that has not started —
+// especially with NEEDS YOU on screen for the task MISSION used to name.
+func TestPromptWhileBlockedDoesNotChangeMission(t *testing.T) {
+	s := New("/proj")
+	s.Apply(prompt("First task"))
+	s.Apply(events.Event{Type: events.PermissionAsk, Timestamp: time.Now(), Source: "claude", Ask: ask("a")})
+	s.Apply(prompt("what about this other thing"))
+
+	if want := "First task"; s.Agent.Mission != want {
+		t.Errorf("Mission = %q, want the unfinished %q", s.Agent.Mission, want)
+	}
+	// The header must not claim WORKING while NEEDS YOU is still the thing on
+	// screen asking for an answer.
+	if s.Agent.Status != events.StatusNeedsInput {
+		t.Errorf("Status = %q, want it to stay %q while blocked", s.Agent.Status, events.StatusNeedsInput)
+	}
+}
+
 // Pinning nothing must not lock the mission to an empty string.
 func TestPinningEmptyLeavesMissionDerivable(t *testing.T) {
 	s := New("/proj")
